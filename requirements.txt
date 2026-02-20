@@ -1,0 +1,8 @@
+deepface
+opencv-python
+sqlalchemy
+tf-keras
+pandas
+numpy
+matplotlib
+pytest
