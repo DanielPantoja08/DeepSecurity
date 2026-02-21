@@ -5,6 +5,10 @@ from core.detector import FaceDetector
 from core.recognizer import FaceRecognizer
 from PIL import Image
 import os
+import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="DeepSecurity AI", layout="wide")
 
@@ -84,32 +88,51 @@ elif choice == "Administrar Identidades":
     with tab2:
         st.subheader("Registrar Persona")
         new_name = st.text_input("Nombre de la Persona").strip()
-        uploaded_files = st.file_uploader("Subir foto(s) del rostro", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
         
-        if st.button("Registrar") and new_name and uploaded_files:
+        st.write("---")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            uploaded_files = st.file_uploader("Subir foto(s) del rostro", type=['jpg', 'jpeg', 'png'], accept_multiple_files=True)
+        
+        with col2:
+            camera_photo = st.camera_input("Tomar foto con la cámara")
+        
+        # Combine all sources
+        all_images = []
+        if uploaded_files:
+            all_images.extend(uploaded_files)
+        if camera_photo:
+            all_images.append(camera_photo)
+        
+        if st.button("Registrar") and new_name and all_images:
             # Create a dedicated folder for the person
             person_dir = os.path.join("db/faces", new_name)
             is_new = not os.path.exists(person_dir)
             
             if is_new:
-                os.makedirs(person_dir)
+                os.makedirs(person_dir, exist_ok=True)
                 st.info(f"Creando nuevo perfil para: {new_name}")
             else:
                 st.warning(f"La identidad '{new_name}' ya existe. Agregando imágenes al perfil existente.")
             
             saved_count = 0
-            for uploaded_file in uploaded_files:
+            for img_file in all_images:
                 # Use a timestamp or count to ensure unique filenames
-                import time
                 timestamp = int(time.time() * 1000)
-                ext = os.path.splitext(uploaded_file.name)[1]
-                if not ext: ext = ".jpg"
+                
+                # Handle file extension
+                ext = ".jpg" # Default
+                if hasattr(img_file, 'name') and img_file.name:
+                    file_ext = os.path.splitext(img_file.name)[1]
+                    if file_ext:
+                        ext = file_ext
                 
                 img_path = os.path.join(person_dir, f"face_{timestamp}_{saved_count}{ext}")
                 
                 # Save the file
                 with open(img_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    f.write(img_file.getbuffer())
                 saved_count += 1
                 
             if saved_count > 0:

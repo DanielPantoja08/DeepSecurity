@@ -20,6 +20,7 @@ dependencies = [
     "streamlit>=1.30.0",
     "tensorflow-intel==2.15.0",
     "mtcnn>=1.0.0",
+    "dotenv>=0.9.9",
 ]
 
 [tool.uv]
