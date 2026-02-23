@@ -19,9 +19,10 @@ def _invalidate_cache(db: str):
 
 
 @router.get("")
-def list_faces(request: Request):
+async def faces(request: Request):
     """Returns the list of registered identity names."""
     db = _db_path(request)
+    print(db)
     os.makedirs(db, exist_ok=True)
     names = sorted(
         d for d in os.listdir(db) if os.path.isdir(os.path.join(db, d))
@@ -30,7 +31,7 @@ def list_faces(request: Request):
 
 
 @router.post("/{name}", status_code=201)
-async def register_face(name: str, request: Request, files: List[UploadFile] = File(...)):
+async def face(name: str, request: Request, files: List[UploadFile] = File(...)):
     """
     Registers or extends an identity by saving one or more face images.
     Invalidates the DeepFace representation cache after saving.
@@ -62,7 +63,7 @@ async def register_face(name: str, request: Request, files: List[UploadFile] = F
 
 
 @router.delete("/{name}", status_code=204)
-def delete_face(name: str, request: Request):
+def face(name: str, request: Request):
     """Deletes all images for an identity."""
     db = _db_path(request)
     person_dir = os.path.join(db, name)

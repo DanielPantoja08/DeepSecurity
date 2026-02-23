@@ -7,12 +7,26 @@ from PIL import Image
 import os
 import time
 from dotenv import load_dotenv
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+import av
 
 load_dotenv()
 
 st.set_page_config(page_title="DeepSecurity AI", layout="wide")
 
 st.title("🛡️ DeepSecurity - Sistema de Identificación")
+
+# Custom CSS to prevent distortion
+st.markdown("""
+    <style>
+    div[data-testid="stVideo"] > video {
+        object-fit: contain !important;
+    }
+    .stImage > img {
+        object-fit: contain !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Initialization
 @st.cache_resource
@@ -28,45 +42,58 @@ choice = st.sidebar.selectbox("Menu", menu)
 if choice == "Reconocimiento en tiempor real.":
     st.header("📹 Identificación en Tiempo Real")
     
-    run = st.checkbox('Iniciar Cámara', value=False)
-    FRAME_WINDOW = st.image([])
-    camera = cv2.VideoCapture(0)
+    RTC_CONFIGURATION = RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    )
 
-    while run:
-        ret, frame = camera.read()
-        if not ret:
-            st.error("No se pudo acceder a la cámara.")
-            break
+    def video_frame_callback(frame):
+        img = frame.to_ndarray(format="bgr24")
         
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Convert to RGB for the AI models
+        rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         # Detect faces
-        faces = detector.detect_faces(frame)
+        faces = detector.detect_faces(rgb_frame)
 
         for face_obj in faces:
-
             x, y, w, h = face_obj['box']
-            #x, y, w, h = face_obj["box"]["x"], face_obj["box"]["y"], face_obj["box"]["w"], face_obj["box"]["h"]
             
-            # Extract and recognize
-            face_img = frame[y:y+h, x:x+w]
+            # Extract and recognize (using RGB)
+            face_img = rgb_frame[y:y+h, x:x+w]
             if face_img.size > 0:
-                # Use the new find_identity method
                 name, distance = recognizer.find_identity(face_img)
                 label = f"{name} ({1-distance:.2f})"
-                color = (0, 255, 0) if name != "Unknown" else (255, 0, 0)
+                # Color in BGR for drawing with OpenCV
+                color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
             else:
                 label = "Unknown"
-                color = (255, 0, 0)
+                color = (0, 0, 255)
 
-            # Draw (Using PIL because streamlit handles RGB better)
-            cv2.rectangle(frame, (x, y), (x+w, y+h), color, 4)
-            cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+            # Draw on the original BGR frame
+            cv2.rectangle(img, (x, y), (x+w, y+h), color, 4)
+            cv2.putText(img, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
 
-        FRAME_WINDOW.image(frame)
-    else:
-        st.write("Cámara detenida.")
-        camera.release()
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+    webrtc_streamer(
+        key="face-recognition",
+        video_frame_callback=video_frame_callback,
+        rtc_configuration=RTC_CONFIGURATION,
+        media_stream_constraints={
+            "video": {
+                "width": 1280,
+                "height": 720,
+                "frameRate": {"ideal": 30, "max": 60},
+            },
+            "audio": False
+        },
+        async_processing=True,
+        video_html_attrs={
+            "style": {"width": "100%", "margin-left": "auto", "margin-right": "auto", "object-fit": "contain"},
+            "controls": False,
+            "autoPlay": True,
+        },
+    )
 
 elif choice == "Administrar Identidades":
     st.header("👥 Gestión de Identidades")

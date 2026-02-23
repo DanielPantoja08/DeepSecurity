@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/recognize", tags=["recognition"])
 
 
 @router.post("")
-async def recognize_frame(request: Request, file: UploadFile = File(...)):
+async def frame(request: Request, file: UploadFile = File(...)):
     """
     Receives a JPEG/PNG frame captured from the browser,
     runs MTCNN face detection + VGG-Face recognition,
