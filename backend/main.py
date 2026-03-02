@@ -19,7 +19,7 @@ if ROOT_DIR not in sys.path:
 
 from backend.core.detector import FaceDetector
 from backend.core.recognizer import FaceRecognizer
-from backend.routers import recognition, faces
+from backend.routers import recognition, faces, settings
 
 
 @asynccontextmanager
@@ -51,6 +51,7 @@ app.add_middleware(
 
 app.include_router(recognition.router)
 app.include_router(faces.router)
+app.include_router(settings.router)
 
 
 @app.get("/", tags=["health"])

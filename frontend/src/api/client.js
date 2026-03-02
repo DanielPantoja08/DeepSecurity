@@ -53,3 +53,31 @@ export async function deleteFace(name) {
     // 204 No Content is success
     if (!res.ok && res.status !== 204) throw new Error(`deleteFace: ${res.status}`);
 }
+
+/**
+ * Gets current system settings.
+ * @returns {Promise<{db_path: string}>}
+ */
+export async function getSettings() {
+    const res = await fetch(`${BASE_URL}/api/settings`);
+    if (!res.ok) throw new Error(`getSettings: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Updates system settings.
+ * @param {{db_path: string}} settings
+ * @returns {Promise<{message: string, db_path: string}>}
+ */
+export async function updateSettings(settings) {
+    const res = await fetch(`${BASE_URL}/api/settings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || `updateSettings: ${res.status}`);
+    }
+    return res.json();
+}

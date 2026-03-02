@@ -6,3 +6,8 @@ pandas
 numpy
 matplotlib
 pytest
+mtcnn
+python-dotenv
+fastapi
+uvicorn[standard]
+python-multipart
