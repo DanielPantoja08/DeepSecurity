@@ -31,25 +31,27 @@ async def frame(request: Request, file: UploadFile = File(...)):
     results: List[dict] = []
 
     for face_obj in detections:
-        x, y, w, h = face_obj["box"]
-        det_confidence = float(face_obj.get("confidence", 0))
+        confidence = face_obj["confidence"]
 
-        # Clamp to frame dimensions
-        x, y = max(0, x), max(0, y)
-        face_crop = rgb_frame[y : y + h, x : x + w]
+        if confidence > 0.9:  # Filter out weak detections
+            x, y, w, h = face_obj["box"]
+            
+            # Clamp to frame dimensions
+            x, y = max(0, x), max(0, y)
+            face_crop = rgb_frame[y : y + h, x : x + w]
 
-        if face_crop.size > 0:
-            name, distance = recognizer.find_identity(face_crop)
-        else:
-            name, distance = "Unknown", 1.0
+            if face_crop.size > 0:
+                name, distance = recognizer.find_identity(face_crop)
+            else:
+                name, distance = "Unknown", 1.0
 
-        results.append(
-            {
-                "name": name,
-                "confidence_detection": round(det_confidence, 3),
-                "similarity": round(float(1 - distance), 3),
-                "box": {"x": int(x), "y": int(y), "w": int(w), "h": int(h)},
-            }
-        )
+            results.append(
+                {
+                    "name": name,
+                    "confidence_detection": round(confidence, 3),
+                    "similarity": round(float(1 - distance), 3),
+                    "box": {"x": int(x), "y": int(y), "w": int(w), "h": int(h)},
+                }
+            )
 
     return {"faces": results}

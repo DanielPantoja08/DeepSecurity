@@ -11,7 +11,7 @@ class FaceRecognizer:
         if not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
 
-    def find_identity(self, img_array, threshold=0.4):
+    def find_identity(self, img_array, threshold=0.9):
         """
         Uses DeepFace.find to search for a face in the database directory.
         img_array: numpy RGB array of the cropped face.
