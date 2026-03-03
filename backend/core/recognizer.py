@@ -1,4 +1,5 @@
 import os
+import pickle
 import numpy as np
 from deepface import DeepFace
 
@@ -7,8 +8,7 @@ class FaceRecognizer:
     """
     Face recognizer with an in-memory embedding cache.
 
-    Instead of calling DeepFace.find() (which re-runs a detector on each crop),
-    we pre-compute embeddings for every registered identity at startup and compare
+    We pre-compute embeddings for every registered identity at startup and compare
     new face crops against the cache using cosine distance.  This brings per-face
     recognition cost from ~500 ms down to ~5 ms.
     """
@@ -23,9 +23,55 @@ class FaceRecognizer:
             os.makedirs(self.db_path)
 
         if self.db_path:
-            self.reload_db()
+            self.load_cache()
+
+    @property
+    def _cache_file(self):
+        return os.path.join(self.db_path, "embeddings_cache.pkl") if self.db_path else None
 
     # ── Public API ───────────────────────────────────────────────
+
+    def load_cache(self):
+        """
+        Loads embeddings from the file cache if it exists and is up to date.
+        Otherwise, rebuilds the database by calling reload_db().
+        """
+        cache_file = self._cache_file
+
+        if not cache_file or not os.path.exists(cache_file):
+            print("[recognizer] No cache file found. Building cache...")
+            self.reload_db()
+            return
+
+        # Check if database has been modified since cache was created
+        cache_mtime = os.path.getmtime(cache_file)
+        needs_reload = False
+
+        for root, _, files in os.walk(self.db_path):
+            if os.path.getmtime(root) > cache_mtime:
+                needs_reload = True
+                break
+            for file in files:
+                if self._is_image(file):
+                    file_path = os.path.join(root, file)
+                    if os.path.getmtime(file_path) > cache_mtime:
+                        needs_reload = True
+                        break
+            if needs_reload:
+                break
+
+        if needs_reload:
+            print("[recognizer] Database modified. Rebuilding cache...")
+            self.reload_db()
+        else:
+            try:
+                assert cache_file is not None
+                with open(cache_file, "rb") as f:
+                    self._cache = pickle.load(f)
+                print(f"[recognizer] Loaded {len(self._cache)} embeddings from file cache.")
+            except Exception as e:
+                print(f"[recognizer] Error loading cache file: {e}. Rebuilding...")
+                self.reload_db()
 
     def reload_db(self):
         """
@@ -61,10 +107,19 @@ class FaceRecognizer:
                     print(f"[recognizer] skip {img_path}: {e}")
 
         self._cache = cache
+        cache_file = self._cache_file
+        if cache_file:
+            try:
+                with open(cache_file, "wb") as f:
+                    pickle.dump(self._cache, f)
+                print(f"[recognizer] Cache saved to {cache_file}")
+            except Exception as e:
+                print(f"[recognizer] Failed to save cache file: {e}")
+
         print(f"[recognizer] Cache loaded: {len(cache)} embeddings for "
               f"{len(set(c['name'] for c in cache))} identities")
 
-    def find_identity(self, face_crop: np.ndarray, threshold: float = 0.40):
+    def find_identity(self, face_crop: np.ndarray, threshold: float = 0.80):
         """
         Compute the embedding for *face_crop* (an RGB numpy array that already
         contains a detected face) and compare against the cached database

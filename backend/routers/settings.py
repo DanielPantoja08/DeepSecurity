@@ -35,7 +35,7 @@ def update_settings(settings: Settings, request: Request):
 
     request.app.state.db_path = new_path
     request.app.state.recognizer.db_path = new_path
-    request.app.state.recognizer.reload_db()
+    request.app.state.recognizer.load_cache()
 
     return {"message": "Settings updated", "db_path": new_path}
 
