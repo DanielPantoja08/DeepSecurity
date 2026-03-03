@@ -12,10 +12,10 @@ def _db_path(request: Request) -> str:
     return request.app.state.db_path
 
 
-def _invalidate_cache(db: str):
-    pkl = os.path.join(db, "representations_vgg_face.pkl")
-    if os.path.exists(pkl):
-        os.remove(pkl)
+def _reload_recognizer(request: Request):
+    """Rebuild the in-memory embedding cache after DB changes."""
+    recognizer = request.app.state.recognizer
+    recognizer.reload_db()
 
 
 @router.get("")
@@ -54,7 +54,7 @@ async def face(name: str, request: Request, files: List[UploadFile] = File(...))
             f.write(content)
         saved += 1
 
-    _invalidate_cache(db)
+    _reload_recognizer(request)
 
     return {
         "message": f"{'Created' if is_new else 'Updated'} identity '{name}'",
@@ -70,5 +70,5 @@ def face(name: str, request: Request):
     if not os.path.exists(person_dir):
         raise HTTPException(status_code=404, detail=f"Identity '{name}' not found")
     shutil.rmtree(person_dir)
-    _invalidate_cache(db)
+    _reload_recognizer(request)
     return JSONResponse(status_code=204, content=None)

@@ -1,28 +1,35 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { recognizeFrame } from "../api/client";
 
-const FRAME_INTERVAL_MS = 600;
-
 const COLORS = {
     known: "#10b981",
     unknown: "#ef4444",
 };
 
+// Lerp factor for smooth bounding-box interpolation (0 = no move, 1 = instant)
+const LERP = 0.35;
+
 export default function Recognition() {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);   // hidden canvas for frame capture
     const overlayRef = useRef(null);  // visible overlay for bounding boxes
-    const intervalRef = useRef(null);
 
     const [running, setRunning] = useState(false);
     const [faces, setFaces] = useState([]);
     const [error, setError] = useState(null);
     const [fps, setFps] = useState(0);
+
+    // Refs that persist across renders without triggering them
     const fpsCounterRef = useRef({ count: 0, last: Date.now() });
+    const cancelledRef = useRef(false);
+    const animFrameRef = useRef(null);
+    // Interpolated face positions for smooth overlay drawing
+    const interpRef = useRef([]);
 
     // ── Start / stop camera ─────────────────────────────────────
     const startCamera = useCallback(async () => {
         setError(null);
+        cancelledRef.current = false;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
@@ -37,48 +44,65 @@ export default function Recognition() {
     }, []);
 
     const stopCamera = useCallback(() => {
+        cancelledRef.current = true;
         if (videoRef.current?.srcObject) {
             videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
             videoRef.current.srcObject = null;
         }
-        clearInterval(intervalRef.current);
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
         setRunning(false);
         setFaces([]);
-        // Clear overlay
+        interpRef.current = [];
         const ctx = overlayRef.current?.getContext("2d");
         if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
     }, []);
 
-    // ── Capture loop ────────────────────────────────────────────
+    // ── Response-gated capture loop ─────────────────────────────
+    // Instead of setInterval (which piles up requests when the backend is slow),
+    // we send the next frame only AFTER we receive the previous response.
     useEffect(() => {
         if (!running) return;
 
-        intervalRef.current = setInterval(async () => {
-            const video = videoRef.current;
-            const canvas = canvasRef.current;
-            const overlay = overlayRef.current;
-            if (!video || video.readyState < 2 || !canvas || !overlay) return;
+        let active = true;
 
-            const W = video.videoWidth;
-            const H = video.videoHeight;
-            if (!W || !H) return;
+        async function loop() {
+            while (active && !cancelledRef.current) {
+                const video = videoRef.current;
+                const canvas = canvasRef.current;
+                const overlay = overlayRef.current;
+                if (!video || video.readyState < 2 || !canvas || !overlay) {
+                    await sleep(100);
+                    continue;
+                }
 
-            // Sync canvas sizes
-            canvas.width = W;
-            canvas.height = H;
-            overlay.width = W;
-            overlay.height = H;
+                const W = video.videoWidth;
+                const H = video.videoHeight;
+                if (!W || !H) { await sleep(100); continue; }
 
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(video, 0, 0, W, H);
+                // Sync canvas sizes
+                canvas.width = W;
+                canvas.height = H;
+                overlay.width = W;
+                overlay.height = H;
 
-            canvas.toBlob(async (blob) => {
-                if (!blob) return;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(video, 0, 0, W, H);
+
                 try {
+                    const blob = await new Promise((res) =>
+                        canvas.toBlob((b) => res(b), "image/jpeg", 0.75)
+                    );
+                    if (!blob || cancelledRef.current) break;
+
                     const data = await recognizeFrame(blob);
+                    if (cancelledRef.current) break;
+
                     const detectedFaces = data.faces || [];
                     setFaces(detectedFaces);
-                    drawOverlay(overlay, detectedFaces, W, H);
+                    updateInterp(detectedFaces);
 
                     // FPS counter
                     const now = Date.now();
@@ -89,23 +113,83 @@ export default function Recognition() {
                     }
                 } catch (err) {
                     console.error("recognize error", err);
+                    // Small back-off on error to avoid tight error loops
+                    await sleep(500);
                 }
-            }, "image/jpeg", 0.85);
-        }, FRAME_INTERVAL_MS);
+            }
+        }
 
-        return () => clearInterval(intervalRef.current);
+        loop();
+        return () => { active = false; };
     }, [running]);
+
+    // ── Smooth overlay animation (runs at display refresh rate) ──
+    useEffect(() => {
+        if (!running) return;
+
+        function animate() {
+            const overlay = overlayRef.current;
+            if (overlay) {
+                const W = overlay.width;
+                const H = overlay.height;
+                if (W && H) drawOverlay(overlay, interpRef.current, W, H);
+            }
+            animFrameRef.current = requestAnimationFrame(animate);
+        }
+        animFrameRef.current = requestAnimationFrame(animate);
+
+        return () => {
+            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        };
+    }, [running]);
+
+    // ── Interpolation logic ─────────────────────────────────────
+    function updateInterp(newFaces) {
+        const prev = interpRef.current;
+        const next = newFaces.map((face) => {
+            // Try to find the same person in previous frame
+            const match = prev.find((p) => p.name === face.name);
+            if (match) {
+                return {
+                    ...face,
+                    // Smoothly move current position toward target
+                    interp: {
+                        x: lerp(match.interp.x, face.box.x, LERP),
+                        y: lerp(match.interp.y, face.box.y, LERP),
+                        w: lerp(match.interp.w, face.box.w, LERP),
+                        h: lerp(match.interp.h, face.box.h, LERP),
+                    },
+                    target: { ...face.box },
+                };
+            }
+            // New face — start at exact position
+            return {
+                ...face,
+                interp: { ...face.box },
+                target: { ...face.box },
+            };
+        });
+        interpRef.current = next;
+    }
 
     // ── Draw bounding boxes ──────────────────────────────────────
     function drawOverlay(overlay, faces, W, H) {
         const ctx = overlay.getContext("2d");
         ctx.clearRect(0, 0, W, H);
 
-        faces.forEach(({ name, similarity, box }) => {
-            const { x, y, w, h } = box;
-            const isKnown = name !== "Unknown";
+        // Continue interpolating toward target each animation frame
+        faces.forEach((face) => {
+            if (face.target) {
+                face.interp.x = lerp(face.interp.x, face.target.x, 0.15);
+                face.interp.y = lerp(face.interp.y, face.target.y, 0.15);
+                face.interp.w = lerp(face.interp.w, face.target.w, 0.15);
+                face.interp.h = lerp(face.interp.h, face.target.h, 0.15);
+            }
+
+            const { x, y, w, h } = face.interp || face.box;
+            const isKnown = face.name !== "Unknown";
             const color = isKnown ? COLORS.known : COLORS.unknown;
-            const label = isKnown ? `${name}  ${Math.round(similarity * 100)}%` : "Desconocido";
+            const label = isKnown ? `${face.name}  ${Math.round(face.similarity * 100)}%` : "Desconocido";
 
             // Glow effect
             ctx.shadowColor = color;
@@ -237,4 +321,13 @@ export default function Recognition() {
             )}
         </div>
     );
+}
+
+// ── Utilities ────────────────────────────────────────────────────
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
 }

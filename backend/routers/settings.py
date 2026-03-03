@@ -31,7 +31,8 @@ def update_settings(settings: Settings, request: Request):
             raise HTTPException(status_code=400, detail=f"Invalid path: {str(e)}")
 
     request.app.state.db_path = new_path
-    # We also need to update the recognizer's db_path
+    # Update the recognizer's db_path and rebuild embedding cache
     request.app.state.recognizer.db_path = new_path
+    request.app.state.recognizer.reload_db()
     
     return {"message": "Settings updated", "db_path": new_path}
