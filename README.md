@@ -45,6 +45,7 @@ DeepSecurity/
 │   └── routers/
 │       ├── recognition.py   # POST /api/recognize
 │       └── faces.py         # CRUD /api/faces
+│       └── settings.py      # CRUD /api/settings
 ├── frontend/
 │   └── src/
 │       ├── api/client.js
