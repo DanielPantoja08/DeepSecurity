@@ -22,7 +22,7 @@ class FaceRecognizer:
                 img_path=img_array,
                 db_path=self.db_path,
                 model_name=self.model_name,
-                detector_backend=self.detector_backend,
+                detector_backend="mtcnn",
                 enforce_detection=False,
                 silent=True,
             )
