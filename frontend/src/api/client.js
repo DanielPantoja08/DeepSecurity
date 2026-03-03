@@ -81,3 +81,15 @@ export async function updateSettings(settings) {
     }
     return res.json();
 }
+
+/**
+ * Opens a native OS folder picker on the server and returns the selected path.
+ * @returns {Promise<{path: string|null, cancelled: boolean}>}
+ */
+export async function browseFolder() {
+    const res = await fetch(`${BASE_URL}/api/settings/browse`, {
+        method: "POST",
+    });
+    if (!res.ok) throw new Error(`browseFolder: ${res.status}`);
+    return res.json();
+}

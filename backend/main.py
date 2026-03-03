@@ -25,11 +25,11 @@ from backend.routers import recognition, faces, settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[DeepSecurity] Loading AI models…")
-    db_path = os.path.join(ROOT_DIR, "db", "faces")
+    # No default DB path — the user selects one from the frontend
     app.state.detector = FaceDetector()
-    app.state.recognizer = FaceRecognizer(db_path=db_path)
-    app.state.db_path = db_path
-    print("[DeepSecurity] Models ready.")
+    app.state.recognizer = FaceRecognizer(db_path=None)
+    app.state.db_path = None
+    print("[DeepSecurity] Models ready (no DB loaded yet).")
     yield
     print("[DeepSecurity] Shutting down.")
 

@@ -1,30 +1,96 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { recognizeFrame } from "../api/client";
+import { recognizeFrame, getSettings, updateSettings, browseFolder } from "../api/client";
 
 const COLORS = {
     known: "#10b981",
     unknown: "#ef4444",
 };
 
-// Lerp factor for smooth bounding-box interpolation (0 = no move, 1 = instant)
 const LERP = 0.35;
 
 export default function Recognition() {
     const videoRef = useRef(null);
-    const canvasRef = useRef(null);   // hidden canvas for frame capture
-    const overlayRef = useRef(null);  // visible overlay for bounding boxes
+    const canvasRef = useRef(null);
+    const overlayRef = useRef(null);
 
     const [running, setRunning] = useState(false);
     const [faces, setFaces] = useState([]);
     const [error, setError] = useState(null);
     const [fps, setFps] = useState(0);
 
-    // Refs that persist across renders without triggering them
+    // DB path state
+    const [dbPath, setDbPath] = useState("");
+    const [dbLoading, setDbLoading] = useState(true);
+    const [dbSaving, setDbSaving] = useState(false);
+    const [dbReady, setDbReady] = useState(false);
+    const [dbFeedback, setDbFeedback] = useState(null);
+
     const fpsCounterRef = useRef({ count: 0, last: Date.now() });
     const cancelledRef = useRef(false);
     const animFrameRef = useRef(null);
-    // Interpolated face positions for smooth overlay drawing
     const interpRef = useRef([]);
+
+    // ── Load current DB path on mount ───────────────────────────
+    useEffect(() => {
+        async function load() {
+            try {
+                const data = await getSettings();
+                setDbPath(data.db_path);
+                if (data.db_path) setDbReady(true);
+            } catch (err) {
+                setDbFeedback({ type: "danger", msg: "Error al cargar la ruta: " + err.message });
+            } finally {
+                setDbLoading(false);
+            }
+        }
+        load();
+    }, []);
+
+    // ── Browse for folder via native picker ────────────────────
+    const handleBrowse = async () => {
+        setDbFeedback(null);
+        setDbSaving(true);
+        try {
+            const res = await browseFolder();
+            if (res.cancelled || !res.path) {
+                setDbFeedback({ type: "warning", msg: "Selección cancelada." });
+                return;
+            }
+            setDbPath(res.path);
+        } catch (err) {
+            setDbFeedback({ type: "danger", msg: "Error al abrir selector: " + err.message });
+        } finally {
+            setDbSaving(false);
+        }
+    };
+
+    // ── Apply selected DB path ──────────────────────────────────
+    const handleApplyDb = async () => {
+        setDbFeedback(null);
+        if (!dbPath) {
+            setDbFeedback({ type: "danger", msg: "Primero selecciona una carpeta." });
+            return;
+        }
+        setDbSaving(true);
+        try {
+            const res = await updateSettings({ db_path: dbPath });
+            setDbPath(res.db_path);
+            setDbReady(true);
+            setDbFeedback({ type: "success", msg: "Base de datos cargada correctamente." });
+        } catch (err) {
+            setDbFeedback({ type: "danger", msg: "Error: " + err.message });
+            setDbReady(false);
+        } finally {
+            setDbSaving(false);
+        }
+    };
+
+    // ── Change DB (go back to selector) ─────────────────────────
+    const handleChangeDb = () => {
+        if (running) stopCamera();
+        setDbReady(false);
+        setDbFeedback(null);
+    };
 
     // ── Start / stop camera ─────────────────────────────────────
     const startCamera = useCallback(async () => {
@@ -61,11 +127,8 @@ export default function Recognition() {
     }, []);
 
     // ── Response-gated capture loop ─────────────────────────────
-    // Instead of setInterval (which piles up requests when the backend is slow),
-    // we send the next frame only AFTER we receive the previous response.
     useEffect(() => {
         if (!running) return;
-
         let active = true;
 
         async function loop() {
@@ -82,7 +145,6 @@ export default function Recognition() {
                 const H = video.videoHeight;
                 if (!W || !H) { await sleep(100); continue; }
 
-                // Sync canvas sizes
                 canvas.width = W;
                 canvas.height = H;
                 overlay.width = W;
@@ -104,7 +166,6 @@ export default function Recognition() {
                     setFaces(detectedFaces);
                     updateInterp(detectedFaces);
 
-                    // FPS counter
                     const now = Date.now();
                     fpsCounterRef.current.count += 1;
                     if (now - fpsCounterRef.current.last >= 1000) {
@@ -113,7 +174,6 @@ export default function Recognition() {
                     }
                 } catch (err) {
                     console.error("recognize error", err);
-                    // Small back-off on error to avoid tight error loops
                     await sleep(500);
                 }
             }
@@ -123,10 +183,9 @@ export default function Recognition() {
         return () => { active = false; };
     }, [running]);
 
-    // ── Smooth overlay animation (runs at display refresh rate) ──
+    // ── Smooth overlay animation ────────────────────────────────
     useEffect(() => {
         if (!running) return;
-
         function animate() {
             const overlay = overlayRef.current;
             if (overlay) {
@@ -137,22 +196,16 @@ export default function Recognition() {
             animFrameRef.current = requestAnimationFrame(animate);
         }
         animFrameRef.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-        };
+        return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current); };
     }, [running]);
 
-    // ── Interpolation logic ─────────────────────────────────────
     function updateInterp(newFaces) {
         const prev = interpRef.current;
-        const next = newFaces.map((face) => {
-            // Try to find the same person in previous frame
+        interpRef.current = newFaces.map((face) => {
             const match = prev.find((p) => p.name === face.name);
             if (match) {
                 return {
                     ...face,
-                    // Smoothly move current position toward target
                     interp: {
                         x: lerp(match.interp.x, face.box.x, LERP),
                         y: lerp(match.interp.y, face.box.y, LERP),
@@ -162,22 +215,13 @@ export default function Recognition() {
                     target: { ...face.box },
                 };
             }
-            // New face — start at exact position
-            return {
-                ...face,
-                interp: { ...face.box },
-                target: { ...face.box },
-            };
+            return { ...face, interp: { ...face.box }, target: { ...face.box } };
         });
-        interpRef.current = next;
     }
 
-    // ── Draw bounding boxes ──────────────────────────────────────
     function drawOverlay(overlay, faces, W, H) {
         const ctx = overlay.getContext("2d");
         ctx.clearRect(0, 0, W, H);
-
-        // Continue interpolating toward target each animation frame
         faces.forEach((face) => {
             if (face.target) {
                 face.interp.x = lerp(face.interp.x, face.target.x, 0.15);
@@ -185,24 +229,18 @@ export default function Recognition() {
                 face.interp.w = lerp(face.interp.w, face.target.w, 0.15);
                 face.interp.h = lerp(face.interp.h, face.target.h, 0.15);
             }
-
             const { x, y, w, h } = face.interp || face.box;
             const isKnown = face.name !== "Unknown";
             const color = isKnown ? COLORS.known : COLORS.unknown;
             const label = isKnown ? `${face.name}  ${Math.round(face.similarity * 100)}%` : "Desconocido";
 
-            // Glow effect
             ctx.shadowColor = color;
             ctx.shadowBlur = 14;
-
-            // Rectangle
             ctx.strokeStyle = color;
             ctx.lineWidth = 2.5;
             ctx.strokeRect(x, y, w, h);
-
             ctx.shadowBlur = 0;
 
-            // Label background
             ctx.font = "bold 14px Inter, sans-serif";
             const textW = ctx.measureText(label).width + 16;
             const labelH = 24;
@@ -219,18 +257,109 @@ export default function Recognition() {
         });
     }
 
-    // ── Cleanup on unmount ───────────────────────────────────────
     useEffect(() => () => stopCamera(), [stopCamera]);
 
+    // ── RENDER ──────────────────────────────────────────────────
+
+    if (dbLoading) {
+        return (
+            <div>
+                <div className="page-header">
+                    <h2>📹 Reconocimiento en Tiempo Real</h2>
+                    <p>Cargando configuración…</p>
+                </div>
+                <div className="skeleton" style={{ height: 100 }} />
+            </div>
+        );
+    }
+
+    // Step 1: Select DB folder before recognition
+    if (!dbReady) {
+        return (
+            <div>
+                <div className="page-header">
+                    <h2>📹 Reconocimiento en Tiempo Real</h2>
+                    <p>Selecciona la carpeta de base de datos de rostros antes de iniciar.</p>
+                </div>
+
+                <div className="card" style={{ maxWidth: 600 }}>
+                    {dbFeedback && (
+                        <div className={`alert alert-${dbFeedback.type}`} style={{ marginBottom: 16 }}>
+                            {dbFeedback.msg}
+                        </div>
+                    )}
+
+                    <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: "0.9rem" }}>
+                        📁 Directorio de Base de Datos
+                    </label>
+                    <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginBottom: 16 }}>
+                        Carpeta con subcarpetas por persona, cada una con sus fotos.
+                    </div>
+
+                    {/* Selected path display */}
+                    {dbPath && (
+                        <div style={{
+                            padding: "10px 14px",
+                            background: "var(--bg)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius)",
+                            fontFamily: "monospace",
+                            fontSize: "0.85rem",
+                            marginBottom: 16,
+                            wordBreak: "break-all",
+                        }}>
+                            {dbPath}
+                        </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                            className="btn"
+                            onClick={handleBrowse}
+                            disabled={dbSaving}
+                            style={{ flex: 1, justifyContent: "center", background: "var(--surface)", border: "1px solid var(--border)" }}
+                        >
+                            {dbSaving ? (
+                                <><span className="animate-pulse">⏳</span> Abriendo…</>
+                            ) : (
+                                <>
+                                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                    Seleccionar Carpeta
+                                </>
+                            )}
+                        </button>
+
+                        {dbPath && (
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleApplyDb}
+                                disabled={dbSaving}
+                                style={{ flex: 1, justifyContent: "center" }}
+                            >
+                                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Cargar y Continuar
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Step 2: Recognition view (DB is set)
     return (
         <div>
             <div className="page-header">
                 <h2>📹 Reconocimiento en Tiempo Real</h2>
-                <p>La cámara captura frames continuamente y los envía al API de FastAPI para su análisis.</p>
+                <p>La cámara captura frames continuamente y los envía al API para su análisis.</p>
             </div>
 
-            {/* Controls */}
-            <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center" }}>
+            {/* DB indicator + controls */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
                 {!running ? (
                     <button className="btn btn-primary" onClick={startCamera}>
                         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -248,12 +377,29 @@ export default function Recognition() {
                         Detener
                     </button>
                 )}
+
+                <button
+                    className="btn"
+                    onClick={handleChangeDb}
+                    style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+                    title="Cambiar carpeta de base de datos"
+                >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    Cambiar DB
+                </button>
+
                 {running && (
                     <span className="badge badge-accent" style={{ fontSize: "0.78rem" }}>
                         <span className="dot dot-green" style={{ width: 6, height: 6, marginRight: 6, display: "inline-block" }} />
                         {fps} fps
                     </span>
                 )}
+
+                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+                    📁 {dbPath}
+                </span>
             </div>
 
             {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}
@@ -300,10 +446,8 @@ export default function Recognition() {
                 )}
             </div>
 
-            {/* Hidden capture canvas */}
             <canvas ref={canvasRef} style={{ display: "none" }} />
 
-            {/* Face list */}
             {faces.length > 0 && (
                 <div style={{ marginTop: 20, display: "flex", flexWrap: "wrap", gap: 10 }}>
                     {faces.map((f, i) => (
@@ -323,11 +467,5 @@ export default function Recognition() {
     );
 }
 
-// ── Utilities ────────────────────────────────────────────────────
-function lerp(a, b, t) {
-    return a + (b - a) * t;
-}
-
-function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-}
+function lerp(a, b, t) { return a + (b - a) * t; }
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }

@@ -13,16 +13,17 @@ class FaceRecognizer:
     recognition cost from ~500 ms down to ~5 ms.
     """
 
-    def __init__(self, db_path="db/faces", model_name="VGG-Face"):
+    def __init__(self, db_path=None, model_name="VGG-Face"):
         self.db_path = db_path
         self.model_name = model_name
         # Each entry: {"name": str, "embedding": np.ndarray, "path": str}
         self._cache: list[dict] = []
 
-        if not os.path.exists(self.db_path):
+        if self.db_path and not os.path.exists(self.db_path):
             os.makedirs(self.db_path)
 
-        self.reload_db()
+        if self.db_path:
+            self.reload_db()
 
     # ── Public API ───────────────────────────────────────────────
 
