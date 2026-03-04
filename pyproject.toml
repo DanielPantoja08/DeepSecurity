@@ -17,7 +17,6 @@ dependencies = [
     "sqlalchemy>=2.0.46",
     "tensorflow==2.15.0",
     "tf-keras==2.15.0",
-    "tensorflow-intel==2.15.0",
     "mtcnn>=1.0.0",
     "python-dotenv>=1.0.0",
     "fastapi>=0.115.0",
@@ -26,11 +25,6 @@ dependencies = [
     "ipykernel>=7.2.0",
 ]
 
-[tool.uv]
-required-environments = [
-    "sys_platform == 'win32' and platform_machine == 'AMD64'"
-]
 
-[build-system]
-requires = ["uv_build>=0.9.24,<0.10.0"]
-build-backend = "uv_build"
+
+

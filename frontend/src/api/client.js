@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 /**
  * Sends a video frame blob to the recognition endpoint.
@@ -90,6 +90,13 @@ export async function browseFolder() {
     const res = await fetch(`${BASE_URL}/api/settings/browse`, {
         method: "POST",
     });
-    if (!res.ok) throw new Error(`browseFolder: ${res.status}`);
+    if (!res.ok) {
+        let msg = `browseFolder: ${res.status}`;
+        try {
+            const data = await res.json();
+            if (data.detail) msg = data.detail;
+        } catch (e) { }
+        throw new Error(msg);
+    }
     return res.json();
 }

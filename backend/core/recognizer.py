@@ -119,7 +119,7 @@ class FaceRecognizer:
         print(f"[recognizer] Cache loaded: {len(cache)} embeddings for "
               f"{len(set(c['name'] for c in cache))} identities")
 
-    def find_identity(self, face_crop: np.ndarray, threshold: float = 0.80):
+    def find_identity(self, face_crop: np.ndarray, threshold: float = 0.20):
         """
         Compute the embedding for *face_crop* (an RGB numpy array that already
         contains a detected face) and compare against the cached database
@@ -153,6 +153,8 @@ class FaceRecognizer:
         best_idx = int(np.argmin(distances))
         best_dist = float(distances[best_idx])
 
+        print(best_dist, threshold, best_dist <= threshold)
+        
         if best_dist <= threshold:
             return self._cache[best_idx]["name"], best_dist
         return "Unknown", best_dist
