@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, UploadFile, File, Request, Depends
 from fastapi.responses import JSONResponse
 import asyncio
@@ -5,7 +6,7 @@ import cv2
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
-from sqlmodel import Session
+from sqlmodel import Session, select
 from ..db import get_session, RecognitionLog, VideoRecording
 from datetime import datetime
 
@@ -89,10 +90,12 @@ async def frame(
         })
         
         # Log to DB
+        recording_id = getattr(request.app.state, "current_recording_id", None)
         log = RecognitionLog(
             person_name=name,
             confidence=similarity,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.utcnow(),
+            video_id=recording_id
         )
         session.add(log)
     
@@ -101,10 +104,21 @@ async def frame(
 
 
 @router.post("/start_recording")
-async def start_recording(request: Request):
+async def start_recording(request: Request, session: Session = Depends(get_session)):
     recorder = request.app.state.recorder
     recorder.start()
-    return {"status": "recording_started"}
+    
+    # Create recording entry early to have an ID for logs
+    recording = VideoRecording(
+        file_path=recorder.current_file,
+        start_time=recorder.start_time
+    )
+    session.add(recording)
+    session.commit()
+    session.refresh(recording)
+    
+    request.app.state.current_recording_id = recording.id
+    return {"status": "recording_started", "id": recording.id}
 
 
 @router.get("/status")
@@ -119,18 +133,20 @@ async def get_status(request: Request):
 @router.post("/stop_recording")
 async def stop_recording(request: Request, session: Session = Depends(get_session)):
     recorder = request.app.state.recorder
+    recording_id = getattr(request.app.state, "current_recording_id", None)
+    
     file_path, start_time, end_time = recorder.stop()
     
-    if file_path:
-        # Save recording to DB
-        recording = VideoRecording(
-            file_path=file_path,
-            start_time=start_time,
-            end_time=end_time
-        )
-        session.add(recording)
-        session.commit()
-        session.refresh(recording)
-        return {"status": "recording_stopped", "id": recording.id, "path": file_path}
+    if recording_id:
+        statement = select(VideoRecording).where(VideoRecording.id == recording_id)
+        recording = session.exec(statement).first()
+        if recording:
+            recording.end_time = end_time
+            session.add(recording)
+            session.commit()
+            session.refresh(recording)
+            request.app.state.current_recording_id = None
+            return {"status": "recording_stopped", "id": recording.id, "path": file_path}
     
+    request.app.state.current_recording_id = None
     return {"status": "no_active_recording"}
