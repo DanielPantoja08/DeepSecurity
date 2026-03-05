@@ -1,5 +1,9 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+export const getRecordingFileUrl = (id, download = false) => {
+    return `${BASE_URL}/api/history/recordings/${id}/file${download ? "?download=true" : ""}`;
+};
+
 /**
  * Sends a video frame blob to the recognition endpoint.
  * @param {Blob} blob - JPEG image blob from canvas.toBlob()

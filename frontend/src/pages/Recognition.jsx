@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { recognizeFrame, getSettings, updateSettings, browseFolder, startRecording, stopRecording, getRecordingStatus } from "../api/client";
+import { recognizeFrame, startRecording, stopRecording, getRecordingStatus } from "../api/client";
 
 const COLORS = {
     known: "#10b981",
@@ -26,80 +26,11 @@ export default function Recognition() {
     };
 
     const [recordingLoading, setRecordingLoading] = useState(false);
-
-    // DB path state
-    const [dbPath, setDbPath] = useState("");
-    const [dbLoading, setDbLoading] = useState(true);
-    const [dbSaving, setDbSaving] = useState(false);
-    const [dbReady, setDbReady] = useState(false);
-    const [dbFeedback, setDbFeedback] = useState(null);
-
     const fpsCounterRef = useRef({ count: 0, last: Date.now() });
     const cancelledRef = useRef(false);
     const animFrameRef = useRef(null);
     const interpRef = useRef([]);
 
-    // ── Load current DB path on mount ───────────────────────────
-    useEffect(() => {
-        async function load() {
-            try {
-                const data = await getSettings();
-                setDbPath(data.db_path);
-                if (data.db_path) setDbReady(true);
-            } catch (err) {
-                setDbFeedback({ type: "danger", msg: "Error al cargar la ruta: " + err.message });
-            } finally {
-                setDbLoading(false);
-            }
-        }
-        load();
-    }, []);
-
-    // ── Browse for folder via native picker ────────────────────
-    const handleBrowse = async () => {
-        setDbFeedback(null);
-        setDbSaving(true);
-        try {
-            const res = await browseFolder();
-            if (res.cancelled || !res.path) {
-                setDbFeedback({ type: "warning", msg: "Selección cancelada." });
-                return;
-            }
-            setDbPath(res.path);
-        } catch (err) {
-            setDbFeedback({ type: "danger", msg: "Error al abrir selector: " + err.message });
-        } finally {
-            setDbSaving(false);
-        }
-    };
-
-    // ── Apply selected DB path ──────────────────────────────────
-    const handleApplyDb = async () => {
-        setDbFeedback(null);
-        if (!dbPath) {
-            setDbFeedback({ type: "danger", msg: "Primero selecciona una carpeta." });
-            return;
-        }
-        setDbSaving(true);
-        try {
-            const res = await updateSettings({ db_path: dbPath });
-            setDbPath(res.db_path);
-            setDbReady(true);
-            setDbFeedback({ type: "success", msg: "Base de datos cargada correctamente." });
-        } catch (err) {
-            setDbFeedback({ type: "danger", msg: "Error: " + err.message });
-            setDbReady(false);
-        } finally {
-            setDbSaving(false);
-        }
-    };
-
-    // ── Change DB (go back to selector) ─────────────────────────
-    const handleChangeDb = () => {
-        if (running) stopCamera();
-        setDbReady(false);
-        setDbFeedback(null);
-    };
 
     // ── Start / stop camera ─────────────────────────────────────
     const startCamera = useCallback(async () => {
@@ -301,94 +232,6 @@ export default function Recognition() {
 
     // ── RENDER ──────────────────────────────────────────────────
 
-    if (dbLoading) {
-        return (
-            <div>
-                <div className="page-header">
-                    <h2>📹 Reconocimiento en Tiempo Real</h2>
-                    <p>Cargando configuración…</p>
-                </div>
-                <div className="skeleton" style={{ height: 100 }} />
-            </div>
-        );
-    }
-
-    // Step 1: Select DB folder before recognition
-    if (!dbReady) {
-        return (
-            <div>
-                <div className="page-header">
-                    <h2>📹 Reconocimiento en Tiempo Real</h2>
-                    <p>Selecciona la carpeta de base de datos de rostros antes de iniciar.</p>
-                </div>
-
-                <div className="card" style={{ maxWidth: 600 }}>
-                    {dbFeedback && (
-                        <div className={`alert alert-${dbFeedback.type}`} style={{ marginBottom: 16 }}>
-                            {dbFeedback.msg}
-                        </div>
-                    )}
-
-                    <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: "0.9rem" }}>
-                        📁 Directorio de Base de Datos
-                    </label>
-                    <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginBottom: 16 }}>
-                        Carpeta con subcarpetas por persona, cada una con sus fotos.
-                    </div>
-
-                    {/* Selected path display */}
-                    {dbPath && (
-                        <div style={{
-                            padding: "10px 14px",
-                            background: "var(--bg)",
-                            border: "1px solid var(--border)",
-                            borderRadius: "var(--radius)",
-                            fontFamily: "monospace",
-                            fontSize: "0.85rem",
-                            marginBottom: 16,
-                            wordBreak: "break-all",
-                        }}>
-                            {dbPath}
-                        </div>
-                    )}
-
-                    <div style={{ display: "flex", gap: 10 }}>
-                        <button
-                            className="btn"
-                            onClick={handleBrowse}
-                            disabled={dbSaving}
-                            style={{ flex: 1, justifyContent: "center", background: "var(--surface)", border: "1px solid var(--border)" }}
-                        >
-                            {dbSaving ? (
-                                <><span className="animate-pulse">⏳</span> Abriendo…</>
-                            ) : (
-                                <>
-                                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                                    </svg>
-                                    Seleccionar Carpeta
-                                </>
-                            )}
-                        </button>
-
-                        {dbPath && (
-                            <button
-                                className="btn btn-primary"
-                                onClick={handleApplyDb}
-                                disabled={dbSaving}
-                                style={{ flex: 1, justifyContent: "center" }}
-                            >
-                                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                Cargar y Continuar
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     // Step 2: Recognition view (DB is set)
     return (
@@ -442,17 +285,6 @@ export default function Recognition() {
                     </button>
                 )}
 
-                <button
-                    className="btn"
-                    onClick={handleChangeDb}
-                    style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-                    title="Cambiar carpeta de base de datos"
-                >
-                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                    </svg>
-                    Cambiar DB
-                </button>
 
                 {running && (
                     <span className="badge badge-accent" style={{ fontSize: "0.78rem" }}>
@@ -461,9 +293,6 @@ export default function Recognition() {
                     </span>
                 )}
 
-                <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
-                    📁 {dbPath}
-                </span>
             </div>
 
             {error && <div className="alert alert-danger" style={{ marginBottom: 16 }}>{error}</div>}

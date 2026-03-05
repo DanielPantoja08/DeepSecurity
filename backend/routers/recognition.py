@@ -42,10 +42,6 @@ async def frame(
     if frame_bgr is None:
         return JSONResponse(status_code=400, content={"detail": "Invalid image data"})
 
-    # Add frame to recorder if active
-    if recorder.is_recording:
-        recorder.add_frame(frame_bgr)
-
     # MTCNN expects RGB
     rgb_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
     small_frame, scale = _downscale(rgb_frame, max_width=640)
@@ -70,8 +66,11 @@ async def frame(
         })
 
     if not valid_faces:
+        if recorder.is_recording:
+            recorder.add_frame(frame_bgr)
         return {"faces": []}
 
+    # Process recognition
     loop = asyncio.get_running_loop()
     async def _recognise(crop: np.ndarray):
         return await loop.run_in_executor(_pool, recognizer.find_identity, crop)
@@ -80,6 +79,11 @@ async def frame(
     identities = await asyncio.gather(*tasks)
 
     results: List[dict] = []
+    recording_id = getattr(request.app.state, "current_recording_id", None)
+    
+    # We will draw on a copy for the recorder if active
+    record_frame = frame_bgr.copy() if recorder.is_recording else None
+
     for face_info, (name, distance) in zip(valid_faces, identities):
         similarity = round(float(1 - distance), 3)
         results.append({
@@ -90,7 +94,6 @@ async def frame(
         })
         
         # Log to DB
-        recording_id = getattr(request.app.state, "current_recording_id", None)
         log = RecognitionLog(
             person_name=name,
             confidence=similarity,
@@ -98,6 +101,21 @@ async def frame(
             video_id=recording_id
         )
         session.add(log)
+
+        # Draw on recording frame if active
+        if record_frame is not None:
+            box = face_info["box"]
+            color = (16, 185, 129) if name != "Unknown" else (239, 68, 68) # BGR (Green/Red)
+            # OpenCV expects BGR, so swap R and B for the colors I defined (React uses RGB)
+            # React: known: #10b981 (16, 185, 129), unknown: #ef4444 (239, 68, 68)
+            bgr_color = (129, 185, 16) if name != "Unknown" else (68, 68, 239)
+            cv2.rectangle(record_frame, (box["x"], box["y"]), (box["x"] + box["w"], box["y"] + box["h"]), bgr_color, 2)
+            label = f"{name} {int(similarity * 100)}%"
+            cv2.putText(record_frame, label, (box["x"], box["y"] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, bgr_color, 2)
+    
+    # Add frame to recorder AFTER drawing
+    if record_frame is not None:
+        recorder.add_frame(record_frame)
     
     session.commit()
     return {"faces": results}

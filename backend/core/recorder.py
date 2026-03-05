@@ -34,8 +34,15 @@ class VideoRecorder:
         
         # Lazy init writer with actual frame dimensions
         if self.writer is None:
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            # Try AVC1 (H.264) for browser compatibility, fallback to MP4V
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
             self.writer = cv2.VideoWriter(self.current_file, fourcc, 10.0, (w, h))
+            
+            if not self.writer.isOpened():
+                print("[VideoRecorder] Warning: avc1 codec failed, falling back to mp4v")
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                self.writer = cv2.VideoWriter(self.current_file, fourcc, 10.0, (w, h))
+            
             self.width, self.height = w, h
             print(f"[VideoRecorder] Initialized VideoWriter: {w}x{h}")
 
@@ -58,6 +65,35 @@ class VideoRecorder:
             self.writer = None
         
         end_time = datetime.utcnow()
+        
+        # Post-process with FFmpeg to ensure web compatibility and add faststart
+        if file_path and os.path.exists(file_path):
+            try:
+                temp_file = file_path.replace(".mp4", "_temp.mp4")
+                os.rename(file_path, temp_file)
+                
+                # Convert to H.264 (libx264) and add faststart
+                # -y: overwrite, -i: input, -c:v libx264: video codec, -preset superfast: speed, -movflags +faststart: web optimization
+                import subprocess
+                cmd = [
+                    "ffmpeg", "-y", "-i", temp_file,
+                    "-c:v", "libx264", "-preset", "ultrafast",
+                    "-pix_fmt", "yuv420p",
+                    "-movflags", "+faststart",
+                    file_path
+                ]
+                print(f"[VideoRecorder] Post-processing: {' '.join(cmd)}")
+                subprocess.run(cmd, check=True, capture_output=True)
+                
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                print(f"[VideoRecorder] Web-optimized file created: {file_path}")
+            except Exception as e:
+                print(f"[VideoRecorder] Post-processing failed: {e}")
+                # Fallback: if temp exists but main doesn't, restore
+                if os.path.exists(temp_file) and not os.path.exists(file_path):
+                    os.rename(temp_file, file_path)
+
         print(f"[VideoRecorder] Stopped recording: {file_path}")
         
         self.current_file = None
