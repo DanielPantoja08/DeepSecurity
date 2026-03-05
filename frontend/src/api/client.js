@@ -100,3 +100,55 @@ export async function browseFolder() {
     }
     return res.json();
 }
+
+/**
+ * Commands the server to start recording the current stream.
+ */
+export async function startRecording() {
+    const res = await fetch(`${BASE_URL}/api/recognize/start_recording`, {
+        method: "POST",
+    });
+    if (!res.ok) throw new Error(`startRecording: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Commands the server to stop recording and returns recording info.
+ */
+export async function stopRecording() {
+    const res = await fetch(`${BASE_URL}/api/recognize/stop_recording`, {
+        method: "POST",
+    });
+    if (!res.ok) throw new Error(`stopRecording: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Fetches the current recording status.
+ * @returns {Promise<{is_recording: boolean}>}
+ */
+export const getRecordingStatus = async () => {
+    const res = await fetch(`${BASE_URL}/api/recognize/status`);
+    if (!res.ok) throw new Error("Error fetching recording status");
+    return await res.json();
+};
+
+/**
+ * Fetches the recognition logs.
+ * @returns {Promise<Array>}
+ */
+export const getRecognitionLogs = async () => {
+    const res = await fetch(`${BASE_URL}/api/history/logs`);
+    if (!res.ok) throw new Error("Error fetching history");
+    return await res.json();
+};
+
+/**
+ * Fetches the video recordings metadata.
+ * @returns {Promise<Array>}
+ */
+export async function getVideoRecordings() {
+    const res = await fetch(`${BASE_URL}/api/history/recordings`);
+    if (!res.ok) throw new Error(`getVideoRecordings: ${res.status}`);
+    return res.json();
+}

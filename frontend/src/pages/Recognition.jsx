@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { recognizeFrame, getSettings, updateSettings, browseFolder } from "../api/client";
+import { recognizeFrame, getSettings, updateSettings, browseFolder, startRecording, stopRecording, getRecordingStatus } from "../api/client";
 
 const COLORS = {
     known: "#10b981",
@@ -17,6 +17,15 @@ export default function Recognition() {
     const [faces, setFaces] = useState([]);
     const [error, setError] = useState(null);
     const [fps, setFps] = useState(0);
+
+    const isRecordingRef = useRef(false);
+    const [isRecording, _setIsRecording] = useState(false);
+    const setIsRecording = (val) => {
+        isRecordingRef.current = val;
+        _setIsRecording(val);
+    };
+
+    const [recordingLoading, setRecordingLoading] = useState(false);
 
     // DB path state
     const [dbPath, setDbPath] = useState("");
@@ -97,6 +106,10 @@ export default function Recognition() {
         setError(null);
         cancelledRef.current = false;
         try {
+            // Synchronize recording state with backend on start
+            const status = await getRecordingStatus();
+            setIsRecording(status.is_recording);
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
                 audio: false,
@@ -110,6 +123,7 @@ export default function Recognition() {
     }, []);
 
     const stopCamera = useCallback(() => {
+        if (isRecordingRef.current) handleToggleRecording(); // Stop recording if camera stops
         cancelledRef.current = true;
         if (videoRef.current?.srcObject) {
             videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
@@ -125,6 +139,25 @@ export default function Recognition() {
         const ctx = overlayRef.current?.getContext("2d");
         if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
     }, []);
+
+    // ── Recording toggle ────────────────────────────────────────
+    const handleToggleRecording = useCallback(async () => {
+        if (!running) return;
+        setRecordingLoading(true);
+        try {
+            if (isRecordingRef.current) {
+                await stopRecording();
+                setIsRecording(false);
+            } else {
+                await startRecording();
+                setIsRecording(true);
+            }
+        } catch (err) {
+            setError("Error con la grabación: " + err.message);
+        } finally {
+            setRecordingLoading(false);
+        }
+    }, [running]);
 
     // ── Response-gated capture loop ─────────────────────────────
     useEffect(() => {
@@ -257,7 +290,14 @@ export default function Recognition() {
         });
     }
 
-    useEffect(() => () => stopCamera(), [stopCamera]);
+    useEffect(() => {
+        return () => {
+            cancelledRef.current = true;
+            if (videoRef.current?.srcObject) {
+                videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+            }
+        };
+    }, []);
 
     // ── RENDER ──────────────────────────────────────────────────
 
@@ -378,6 +418,30 @@ export default function Recognition() {
                     </button>
                 )}
 
+                {running && (
+                    <button
+                        className={`btn ${isRecording ? "btn-danger" : ""}`}
+                        onClick={handleToggleRecording}
+                        disabled={recordingLoading}
+                        style={{ border: "1px solid var(--border)" }}
+                    >
+                        {isRecording ? (
+                            <>
+                                <span className="rec-dot" />
+                                Detener Grabación
+                            </>
+                        ) : (
+                            <>
+                                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <circle cx="12" cy="12" r="6" fill="#ef4444" />
+                                    <circle cx="12" cy="12" r="9" stroke="#ef4444" />
+                                </svg>
+                                Grabar Video
+                            </>
+                        )}
+                    </button>
+                )}
+
                 <button
                     className="btn"
                     onClick={handleChangeDb}
@@ -416,6 +480,12 @@ export default function Recognition() {
                     maxWidth: 900,
                 }}
             >
+                {isRecording && (
+                    <div className="rec-overlay">
+                        <span className="rec-dot animate-pulse" />
+                        REC
+                    </div>
+                )}
                 <video
                     ref={videoRef}
                     style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}

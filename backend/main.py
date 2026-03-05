@@ -22,18 +22,24 @@ if ROOT_DIR not in sys.path:
 
 from backend.core.detector import FaceDetector
 from backend.core.recognizer import FaceRecognizer
-from backend.routers import recognition, faces, settings
+from backend.core.recorder import VideoRecorder
+from backend.routers import recognition, faces, settings, history
+from backend.db import create_db_and_tables
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[DeepSecurity] Loading AI models…")
     
+    # Initialize DB
+    create_db_and_tables()
+    
     db_path = os.getenv("DB_PATH", os.path.join(ROOT_DIR, "db", "faces"))
     os.makedirs(db_path, exist_ok=True)
     
     app.state.detector = FaceDetector()
     app.state.recognizer = FaceRecognizer(db_path=db_path)
+    app.state.recorder = VideoRecorder(output_dir=os.path.join(ROOT_DIR, "recordings"))
     app.state.db_path = db_path
     
     print(f"[DeepSecurity] Models ready (DB loaded from {db_path}).")
@@ -44,7 +50,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="DeepSecurity API",
     description="Face detection & recognition REST API powered by MTCNN + VGG-Face.",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -61,6 +67,7 @@ app.add_middleware(
 app.include_router(recognition.router)
 app.include_router(faces.router)
 app.include_router(settings.router)
+app.include_router(history.router)
 
 
 @app.get("/", tags=["health"])
