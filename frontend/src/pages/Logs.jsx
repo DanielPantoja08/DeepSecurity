@@ -1,0 +1,176 @@
+import React, { useEffect, useState } from "react";
+import { getRecordingStatus, getVideoRecordings, getRecordingFileUrl } from "../api/client";
+
+export default function Logs() {
+    const [recordings, setRecordings] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [expandedId, setExpandedId] = useState(null);
+    const [playingId, setPlayingId] = useState(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const recsData = await getVideoRecordings();
+                setRecordings(recsData);
+            } catch (err) {
+                setError("Error al cargar grabaciones: " + err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    const formatDate = (isoStr) => {
+        if (!isoStr) return "-";
+        const d = new Date(isoStr);
+        return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+    };
+
+    const toggleExpand = (id) => {
+        setExpandedId(expandedId === id ? null : id);
+        // Stop playing if we collapse the row
+        if (expandedId === id) setPlayingId(null);
+    };
+
+    const handleWatch = (e, id) => {
+        e.stopPropagation();
+        setExpandedId(id);
+        setPlayingId(id);
+    };
+
+    const handleDownload = (e, id) => {
+        e.stopPropagation();
+        window.open(getRecordingFileUrl(id, true), "_blank");
+    };
+
+    if (loading) return <div className="skeleton" style={{ height: 300, width: "100%" }} />;
+
+    return (
+        <div className="logs-page">
+            <div className="page-header">
+                <h2>📜 Registro de Grabaciones e Historial</h2>
+                <p>Visualiza las grabaciones realizadas y las personas identificadas en cada sesión.</p>
+            </div>
+
+            {error && <div className="alert alert-danger" style={{ marginBottom: 20 }}>{error}</div>}
+
+            <div className="card">
+                <div className="table-container">
+                    <table className="table">
+                        <thead>
+                            <tr>
+                                <th style={{ width: 40 }}></th>
+                                <th>Fecha y Hora</th>
+                                <th>Duración</th>
+                                <th style={{ textAlign: "right" }}>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recordings.length === 0 ? (
+                                <tr><td colSpan="4" style={{ textAlign: "center", padding: "40px 20px" }}>No hay grabaciones registradas.</td></tr>
+                            ) : (
+                                recordings.map((rec) => (
+                                    <React.Fragment key={rec.id}>
+                                        <tr
+                                            onClick={() => toggleExpand(rec.id)}
+                                            style={{ cursor: "pointer" }}
+                                            className={expandedId === rec.id ? "row-selected" : ""}
+                                        >
+                                            <td>
+                                                <svg
+                                                    width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                                                    style={{ transform: expandedId === rec.id ? 'rotate(90deg)' : 'none', transition: '0.2s' }}
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </td>
+                                            <td>
+                                                <div style={{ fontWeight: 600 }}>{formatDate(rec.start_time)}</div>
+                                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{rec.file_path.split(/[\\/]/).pop()}</div>
+                                            </td>
+                                            <td>
+                                                {rec.end_time ? (
+                                                    <span>{Math.round((new Date(rec.end_time) - new Date(rec.start_time)) / 1000)}s</span>
+                                                ) : (
+                                                    <span className="badge badge-accent">En curso...</span>
+                                                )}
+                                            </td>
+                                            <td style={{ textAlign: "right" }}>
+                                                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                                                    <button
+                                                        className="btn btn-primary"
+                                                        onClick={(e) => handleWatch(e, rec.id)}
+                                                        style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                                                    >
+                                                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                            <circle cx="12" cy="12" r="9" />
+                                                        </svg>
+                                                        Mirar
+                                                    </button>
+                                                    <button
+                                                        className="btn"
+                                                        onClick={(e) => handleDownload(e, rec.id)}
+                                                        style={{ padding: "6px 12px", fontSize: "0.8rem", background: "var(--surface)", border: "1px solid var(--border)" }}
+                                                    >
+                                                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                        </svg>
+                                                        Descargar
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {expandedId === rec.id && (
+                                            <tr style={{ background: "var(--surface)" }}>
+                                                <td></td>
+                                                <td colSpan="3" style={{ padding: "20px 24px" }}>
+                                                    <div style={{ display: "grid", gridTemplateColumns: playingId === rec.id ? "1fr 1fr" : "1fr", gap: 24, alignItems: "start" }}>
+                                                        {/* Info Panel */}
+                                                        <div>
+                                                            <h5 style={{ marginBottom: 12, fontSize: "0.95rem", fontWeight: 600 }}>Personas Identificadas (Consolidado):</h5>
+                                                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                                                {rec.detected_people && rec.detected_people.length > 0 ? (
+                                                                    rec.detected_people.map((p, i) => (
+                                                                        <div key={i} className="card" style={{ padding: "8px 12px", background: "var(--bg)", display: "flex", alignItems: "center", gap: 8 }}>
+                                                                            <span className={`dot ${p !== "Unknown" ? "dot-green" : "dot-red"}`} style={{ width: 8, height: 8 }} />
+                                                                            <span style={{ fontWeight: 500, fontSize: "0.85rem" }}>{p}</span>
+                                                                        </div>
+                                                                    ))
+                                                                ) : (
+                                                                    <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No se identificó a nadie en esta grabación.</div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Video Player Panel */}
+                                                        {playingId === rec.id && (
+                                                            <div style={{ borderRadius: "var(--radius)", overflow: "hidden", border: "1px solid var(--border)", background: "#000" }}>
+                                                                <video
+                                                                    key={rec.id}
+                                                                    controls
+                                                                    autoPlay
+                                                                    style={{ width: "100%", display: "block" }}
+                                                                >
+                                                                    <source src={getRecordingFileUrl(rec.id)} type="video/mp4" />
+                                                                    Tu navegador no soporta la reproducción de este video.
+                                                                </video>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}
