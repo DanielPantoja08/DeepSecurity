@@ -11,6 +11,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Ensure the project root is on sys.path so db/ relative paths resolve correctly
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -25,11 +28,15 @@ from backend.routers import recognition, faces, settings
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("[DeepSecurity] Loading AI models…")
-    # No default DB path — the user selects one from the frontend
+    
+    db_path = os.getenv("DB_PATH", os.path.join(ROOT_DIR, "db", "faces"))
+    os.makedirs(db_path, exist_ok=True)
+    
     app.state.detector = FaceDetector()
-    app.state.recognizer = FaceRecognizer(db_path=None)
-    app.state.db_path = None
-    print("[DeepSecurity] Models ready (no DB loaded yet).")
+    app.state.recognizer = FaceRecognizer(db_path=db_path)
+    app.state.db_path = db_path
+    
+    print(f"[DeepSecurity] Models ready (DB loaded from {db_path}).")
     yield
     print("[DeepSecurity] Shutting down.")
 
@@ -41,9 +48,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

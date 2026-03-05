@@ -47,6 +47,13 @@ def browse_folder():
     the selected path.  Runs on a separate thread because tkinter
     needs its own main-loop context.
     """
+    if os.getenv("DISABLE_NATIVE_FILE_PICKER", "false").lower() == "true":
+        raise HTTPException(
+            status_code=501,
+            detail="La selección de carpetas nativa está desactivada en este entorno. "
+                   "Configure la ruta mediante la variable de entorno DB_PATH."
+        )
+
     result = {"path": None, "error": None}
 
     def _pick():
