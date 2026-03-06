@@ -3,7 +3,7 @@ DeepSecurity — FastAPI Backend
 Exposes REST endpoints for face detection, recognition, and identity management.
 
 Run from the project root (DeepSecurity/):
-    uvicorn backend.main:app --reload --port 8000
+    uvicorn main:app --reload --port 8000
 """
 import sys
 import os
@@ -31,7 +31,6 @@ from backend.db import create_db_and_tables
 async def lifespan(app: FastAPI):
     print("[DeepSecurity] Loading AI models…")
     
-    # Initialize DB
     create_db_and_tables()
     
     db_path = os.getenv("DB_PATH", os.path.join(ROOT_DIR, "db", "faces"))

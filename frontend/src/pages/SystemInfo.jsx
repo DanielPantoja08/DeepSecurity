@@ -2,20 +2,27 @@ import { useState, useEffect } from "react";
 import { getSettings } from "../api/client";
 
 const INFO_ROWS_BASE = [
-    { label: "Detector de Rostros", value: "MTCNN", badge: "badge-accent" },
-    { label: "Modelo de Reconocimiento", value: "VGG-Face (DeepFace)", badge: "badge-accent" },
-    { label: "Backend", value: "FastAPI + Uvicorn", badge: "badge-accent" },
-    { label: "Frontend", value: "React 19 + Vite 7", badge: "badge-accent" },
-    { label: "Comunicación", value: "REST API / multipart/form-data", badge: "badge-success" },
+    { label: "Versión del Sistema", value: "v2.1.0", badge: "badge-primary" },
+    { label: "Detector de Rostros", value: "MTCNN (Multi-task Cascaded CNN)", badge: "badge-accent" },
+    { label: "Core de Reconocimiento", value: "VGG-Face via DeepFace", badge: "badge-accent" },
+    { label: "Backend Framework", value: "FastAPI + Uvicorn", badge: "badge-accent" },
+    { label: "Frontend Stack", value: "React 19 + Vite 7 + DaisyUI", badge: "badge-accent" },
+    { label: "Persistencia de Datos", value: "SQLite + SQLModel (ORM)", badge: "badge-success" },
+    { label: "Protocolo", value: "REST API / JSON / Multipart", badge: "badge-info" },
 ];
 
 const ENDPOINTS = [
     { method: "GET", path: "/api/faces", desc: "Lista todas las identidades registradas" },
     { method: "POST", path: "/api/faces/{name}", desc: "Registra o amplía una identidad con imágenes" },
     { method: "DELETE", path: "/api/faces/{name}", desc: "Elimina una identidad y sus imágenes" },
-    { method: "POST", path: "/api/recognize", desc: "Recibe un frame JPEG y devuelve los rostros detectados" },
-    { method: "GET", path: "/api/settings", desc: "Obtiene la ruta de la base de datos actual" },
-    { method: "POST", path: "/api/settings", desc: "Actualiza la ruta de la base de datos" },
+    { method: "POST", path: "/api/recognize", desc: "Recibe un frame y devuelve rostros detectados" },
+    { method: "POST", path: "/api/recognize/start_recording", desc: "Inicia la grabación de video en el servidor" },
+    { method: "POST", path: "/api/recognize/stop_recording", desc: "Detiene la grabación y guarda el archivo" },
+    { method: "GET", path: "/api/history/logs", desc: "Obtiene el historial de reconocimientos (DB)" },
+    { method: "GET", path: "/api/history/recordings", desc: "Lista las grabaciones de video procesadas" },
+    { method: "GET", path: "/api/settings", desc: "Obtiene la configuración actual del sistema" },
+    { method: "POST", path: "/api/settings", desc: "Actualiza la ruta de la base de datos de rostros" },
+    { method: "POST", path: "/api/settings/browse", desc: "Abre selector de carpetas nativo (OS)" },
 ];
 
 const METHOD_COLOR = {
