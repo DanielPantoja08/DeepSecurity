@@ -163,22 +163,45 @@ export default function Recognition() {
         return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current); };
     }, [running]);
 
+    /**
+     * Match each new detection to the closest previous box by centroid distance,
+     * instead of by name. This prevents Unknown boxes from swapping between faces.
+     */
     function updateInterp(newFaces) {
         const prev = interpRef.current;
+        const used = new Set();
+
         interpRef.current = newFaces.map((face) => {
-            const match = prev.find((p) => p.name === face.name);
-            if (match) {
+            const cx = face.box.x + face.box.w / 2;
+            const cy = face.box.y + face.box.h / 2;
+
+            let bestMatch = null;
+            let bestDist = Infinity;
+
+            prev.forEach((p, idx) => {
+                if (used.has(idx)) return;
+                const pcx = p.interp.x + p.interp.w / 2;
+                const pcy = p.interp.y + p.interp.h / 2;
+                const dist = Math.hypot(cx - pcx, cy - pcy);
+                if (dist < bestDist) { bestDist = dist; bestMatch = idx; }
+            });
+
+            // Only accept match if the previous box is reasonably close (< half the frame)
+            if (bestMatch !== null && bestDist < 300) {
+                used.add(bestMatch);
+                const m = prev[bestMatch];
                 return {
                     ...face,
                     interp: {
-                        x: lerp(match.interp.x, face.box.x, LERP),
-                        y: lerp(match.interp.y, face.box.y, LERP),
-                        w: lerp(match.interp.w, face.box.w, LERP),
-                        h: lerp(match.interp.h, face.box.h, LERP),
+                        x: lerp(m.interp.x, face.box.x, LERP),
+                        y: lerp(m.interp.y, face.box.y, LERP),
+                        w: lerp(m.interp.w, face.box.w, LERP),
+                        h: lerp(m.interp.h, face.box.h, LERP),
                     },
                     target: { ...face.box },
                 };
             }
+            // New face — snap to position immediately, no interpolation lag
             return { ...face, interp: { ...face.box }, target: { ...face.box } };
         });
     }
@@ -187,12 +210,9 @@ export default function Recognition() {
         const ctx = overlay.getContext("2d");
         ctx.clearRect(0, 0, W, H);
         faces.forEach((face) => {
-            if (face.target) {
-                face.interp.x = lerp(face.interp.x, face.target.x, 0.15);
-                face.interp.y = lerp(face.interp.y, face.target.y, 0.15);
-                face.interp.w = lerp(face.interp.w, face.target.w, 0.15);
-                face.interp.h = lerp(face.interp.h, face.target.h, 0.15);
-            }
+            // Interpolation is driven entirely by updateInterp() (called on each API
+            // response). drawOverlay() just reads the already-interpolated position
+            // so boxes never jump mid-frame between network responses.
             const { x, y, w, h } = face.interp || face.box;
             const isKnown = face.name !== "Unknown";
             const color = isKnown ? COLORS.known : COLORS.unknown;
