@@ -164,8 +164,9 @@ export default function Recognition() {
     }, [running]);
 
     /**
-     * Match each new detection to the closest previous box by centroid distance,
-     * instead of by name. This prevents Unknown boxes from swapping between faces.
+     * Match each new detection to the closest previous box by centroid distance.
+     * Only updates `target` — `interp` is advanced toward target in drawOverlay
+     * at 60fps so the animation remains smooth without double-LERPing.
      */
     function updateInterp(newFaces) {
         const prev = interpRef.current;
@@ -186,22 +187,16 @@ export default function Recognition() {
                 if (dist < bestDist) { bestDist = dist; bestMatch = idx; }
             });
 
-            // Only accept match if the previous box is reasonably close (< half the frame)
             if (bestMatch !== null && bestDist < 300) {
                 used.add(bestMatch);
-                const m = prev[bestMatch];
+                // Keep the current interpolated position — drawOverlay will advance it
                 return {
                     ...face,
-                    interp: {
-                        x: lerp(m.interp.x, face.box.x, LERP),
-                        y: lerp(m.interp.y, face.box.y, LERP),
-                        w: lerp(m.interp.w, face.box.w, LERP),
-                        h: lerp(m.interp.h, face.box.h, LERP),
-                    },
+                    interp: { ...prev[bestMatch].interp },
                     target: { ...face.box },
                 };
             }
-            // New face — snap to position immediately, no interpolation lag
+            // New face — snap immediately so it doesn't fly in from (0,0)
             return { ...face, interp: { ...face.box }, target: { ...face.box } };
         });
     }
@@ -210,9 +205,14 @@ export default function Recognition() {
         const ctx = overlay.getContext("2d");
         ctx.clearRect(0, 0, W, H);
         faces.forEach((face) => {
-            // Interpolation is driven entirely by updateInterp() (called on each API
-            // response). drawOverlay() just reads the already-interpolated position
-            // so boxes never jump mid-frame between network responses.
+            // Advance interp → target each animation frame (60fps) for smooth movement.
+            // updateInterp() only sets the target on API responses, so there's no double-LERP.
+            if (face.target) {
+                face.interp.x = lerp(face.interp.x, face.target.x, LERP);
+                face.interp.y = lerp(face.interp.y, face.target.y, LERP);
+                face.interp.w = lerp(face.interp.w, face.target.w, LERP);
+                face.interp.h = lerp(face.interp.h, face.target.h, LERP);
+            }
             const { x, y, w, h } = face.interp || face.box;
             const isKnown = face.name !== "Unknown";
             const color = isKnown ? COLORS.known : COLORS.unknown;
