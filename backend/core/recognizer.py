@@ -153,7 +153,7 @@ class FaceRecognizer:
         best_idx = int(np.argmin(distances))
         best_dist = float(distances[best_idx])
 
-        print(best_dist, threshold, best_dist <= threshold)
+        #print(best_dist, threshold, best_dist <= threshold)
         
         if best_dist <= threshold:
             return self._cache[best_idx]["name"], best_dist

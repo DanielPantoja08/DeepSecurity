@@ -14,6 +14,14 @@ services:
       - DB_PATH=/app/db/faces
       - CORS_ORIGINS=http://localhost,http://localhost:5173,http://localhost:3000
       - DISABLE_NATIVE_FILE_PICKER=true
+      - TF_FORCE_GPU_ALLOW_GROWTH=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
     restart: unless-stopped
     command: [ "uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
 
