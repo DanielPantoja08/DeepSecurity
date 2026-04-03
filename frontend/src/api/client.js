@@ -1,4 +1,7 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// Use relative URLs so requests go to the same host/IP that served the page.
+// Nginx proxies /api/* → backend:8000/api/* internally.
+// This works from any PC on the network without hardcoding an IP.
+const BASE_URL = "";
 
 export const getRecordingFileUrl = (id, download = false) => {
     return `${BASE_URL}/api/history/recordings/${id}/file${download ? "?download=true" : ""}`;
