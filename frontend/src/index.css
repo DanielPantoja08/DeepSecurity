@@ -330,3 +330,194 @@ body {
 .table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* ── Sidebar footer (user + logout) ─────────────────────────── */
+.sidebar-footer {
+  padding: 12px 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+}
+
+.sidebar-user span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-logout {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all var(--transition);
+  text-align: left;
+}
+
+.sidebar-logout:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Login page ─────────────────────────────────────────────── */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0, 212, 255, 0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 80% 90%, rgba(124, 58, 237, 0.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  z-index: 1;
+  box-shadow:
+    0 0 80px rgba(0, 212, 255, 0.05),
+    0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.login-shield {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.login-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.03em;
+  margin-bottom: 4px;
+}
+
+.login-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.login-btn {
+  width: 100%;
+  justify-content: center;
+  padding: 12px;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+/* Login / Register mode tabs */
+.login-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-tertiary, #1a1f2e);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.login-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.login-tab:hover {
+  color: var(--text-primary, #e2e8f0);
+}
+
+.login-tab--active {
+  background: var(--bg-card, #242938);
+  color: var(--accent, #60a5fa);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Spinner inside the login button */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.login-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  border-top-color: #000;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}

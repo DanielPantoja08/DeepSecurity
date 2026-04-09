@@ -1,11 +1,18 @@
 import os
-import time
 import shutil
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
-from fastapi.responses import JSONResponse
+import time
 from typing import List
 
-router = APIRouter(prefix="/api/faces", tags=["faces"])
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
+
+from ..auth.users import current_active_user
+
+router = APIRouter(
+    prefix="/api/faces",
+    tags=["faces"],
+    dependencies=[Depends(current_active_user)],
+)
 
 
 def _db_path(request: Request) -> str:
@@ -22,7 +29,6 @@ def _reload_recognizer(request: Request):
 async def faces(request: Request):
     """Returns the list of registered identity names."""
     db = _db_path(request)
-    print(db)
     os.makedirs(db, exist_ok=True)
     names = sorted(
         d for d in os.listdir(db) if os.path.isdir(os.path.join(db, d))
@@ -63,7 +69,7 @@ async def face(name: str, request: Request, files: List[UploadFile] = File(...))
 
 
 @router.delete("/{name}", status_code=204)
-def face(name: str, request: Request):
+def delete_face(name: str, request: Request):
     """Deletes all images for an identity."""
     db = _db_path(request)
     person_dir = os.path.join(db, name)

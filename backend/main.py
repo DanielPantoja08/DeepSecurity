@@ -3,13 +3,13 @@ DeepSecurity — FastAPI Backend
 Exposes REST endpoints for face detection, recognition, and identity management.
 
 Run from the project root (DeepSecurity/):
-    uvicorn main:app --reload --port 8000
+    uvicorn backend.main:app --reload --port 8000
 """
 import sys
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
@@ -25,22 +25,29 @@ from backend.core.recognizer import FaceRecognizer
 from backend.core.recorder import VideoRecorder
 from backend.routers import recognition, faces, settings, history
 from backend.db import create_db_and_tables
+from backend.auth.users import (
+    fastapi_users,
+    auth_backend,
+    UserRead,
+    UserCreate,
+    UserUpdate,
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("[DeepSecurity] Initialising database…")
+    await create_db_and_tables()
+
     print("[DeepSecurity] Loading AI models…")
-    
-    create_db_and_tables()
-    
     db_path = os.getenv("DB_PATH", os.path.join(ROOT_DIR, "db", "faces"))
     os.makedirs(db_path, exist_ok=True)
-    
+
     app.state.detector = FaceDetector()
     app.state.recognizer = FaceRecognizer(db_path=db_path)
     app.state.recorder = VideoRecorder(output_dir=os.path.join(ROOT_DIR, "recordings"))
     app.state.db_path = db_path
-    
+
     print(f"[DeepSecurity] Models ready (DB loaded from {db_path}).")
     yield
     print("[DeepSecurity] Shutting down.")
@@ -49,7 +56,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="DeepSecurity API",
     description="Face detection & recognition REST API powered by MTCNN + VGG-Face.",
-    version="2.1.0",
+    version="2.2.0",
     lifespan=lifespan,
 )
 
@@ -60,12 +67,29 @@ allow_all_origins = origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    # credentials (cookies/Authorization) cannot be used with wildcard origin per CORS spec
     allow_credentials=not allow_all_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── Auth routes (public) ────────────────────────────────────────────────────
+app.include_router(
+    fastapi_users.get_auth_router(auth_backend),
+    prefix="/api/auth/jwt",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/api/auth",
+    tags=["auth"],
+)
+app.include_router(
+    fastapi_users.get_users_router(UserRead, UserUpdate),
+    prefix="/api/users",
+    tags=["users"],
+)
+
+# ── Application routes (protected by router-level dependency) ───────────────
 app.include_router(recognition.router)
 app.include_router(faces.router)
 app.include_router(settings.router)

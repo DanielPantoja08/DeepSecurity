@@ -1,21 +1,30 @@
 from datetime import datetime
-from typing import List, Optional
-from sqlmodel import Field, Relationship, SQLModel
+from typing import Optional, List
+from sqlalchemy import Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from .database import Base
 
-class VideoRecording(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    file_path: str
-    start_time: datetime = Field(default_factory=datetime.utcnow)
-    end_time: Optional[datetime] = None
-    
-    # Relationship to logs
-    logs: List["RecognitionLog"] = Relationship(back_populates="video")
 
-class RecognitionLog(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    person_name: str
-    confidence: float
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
-    video_id: Optional[int] = Field(default=None, foreign_key="videorecording.id")
-    video: Optional[VideoRecording] = Relationship(back_populates="logs")
+class VideoRecording(Base):
+    __tablename__ = "videorecording"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    file_path: Mapped[str] = mapped_column(String)
+    start_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    logs: Mapped[List["RecognitionLog"]] = relationship(back_populates="video")
+
+
+class RecognitionLog(Base):
+    __tablename__ = "recognitionlog"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    person_name: Mapped[str] = mapped_column(String)
+    confidence: Mapped[float] = mapped_column(Float)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    video_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("videorecording.id"), nullable=True
+    )
+
+    video: Mapped[Optional["VideoRecording"]] = relationship(back_populates="logs")

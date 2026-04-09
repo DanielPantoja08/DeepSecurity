@@ -14,7 +14,7 @@ dependencies = [
     "opencv-python>=4.8.0.74,<4.9.0.0",
     "pandas>=2.0.0",
     "pytest>=9.0.2",
-    "sqlalchemy>=2.0.46",
+    "sqlalchemy[asyncio]>=2.0.46",
     "tensorflow-cpu==2.15.0",
     "tf-keras==2.15.0",
     "mtcnn>=1.0.0",
@@ -24,6 +24,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "ipykernel>=7.2.0",
     "sqlmodel>=0.0.14",
+    "fastapi-users[sqlalchemy]>=12.1.0",
+    "asyncpg>=0.29.0",
+    "email-validator>=2.0.0",
 ]
 [tool.ruff]
 line-length = 88

@@ -6,9 +6,13 @@ __pycache__/
 .env
 *.db
 *.log
+*.md
 .vscode/
 .idea/
 .DS_Store
 *.embeddings.pkl
 /db
 /Test_DB
+.claude/
+.playwright-mcp/
+recordings/

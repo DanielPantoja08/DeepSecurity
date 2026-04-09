@@ -1,4 +1,22 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: deepsecurity-db
+    environment:
+      POSTGRES_DB: deepsecurity
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -6,18 +24,24 @@ services:
     container_name: deepsecurity-api
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
       - ./db/faces:/app/db/faces
       - ./backend:/app/backend
       - deepface_weights:/root/.deepface
+      - ./recordings:/app/recordings
     environment:
       - DB_PATH=/app/db/faces
       - CORS_ORIGINS=*
       - DISABLE_NATIVE_FILE_PICKER=true
       # Force CPU — no GPU required
       - CUDA_VISIBLE_DEVICES=
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/deepsecurity
+      - JWT_SECRET=CHANGEME_replace_with_a_secure_random_secret
     restart: unless-stopped
-    command: [ "uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
+    command: ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   frontend:
     build:
@@ -32,3 +56,4 @@ services:
 
 volumes:
   deepface_weights:
+  postgres_data:

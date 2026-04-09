@@ -1,16 +1,25 @@
 import os
-from sqlmodel import create_engine, SQLModel, Session
-from .models import * # Import models for table creation
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import DeclarativeBase
 
-# The database file is in the root by default
-sqlite_file_name = "deepsecurity.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/deepsecurity",
+)
 
-engine = create_engine(sqlite_url, echo=False)
+engine = create_async_engine(DATABASE_URL, echo=False)
+async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
 
-def get_session():
-    with Session(engine) as session:
+class Base(DeclarativeBase):
+    pass
+
+
+async def create_db_and_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def get_async_session() -> AsyncSession:
+    async with async_session_maker() as session:
         yield session

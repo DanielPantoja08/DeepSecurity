@@ -1,9 +1,16 @@
 import os
 import threading
-from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Request
 
-router = APIRouter(prefix="/api/settings", tags=["settings"])
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from ..auth.users import current_active_user
+
+router = APIRouter(
+    prefix="/api/settings",
+    tags=["settings"],
+    dependencies=[Depends(current_active_user)],
+)
 
 
 class Settings(BaseModel):
@@ -43,15 +50,16 @@ def update_settings(settings: Settings, request: Request):
 @router.post("/browse")
 def browse_folder():
     """
-    Opens a native OS folder picker dialog (tkinter) and returns
-    the selected path.  Runs on a separate thread because tkinter
-    needs its own main-loop context.
+    Opens a native OS folder picker dialog (tkinter) and returns the selected path.
+    Runs on a separate thread because tkinter needs its own main-loop context.
     """
     if os.getenv("DISABLE_NATIVE_FILE_PICKER", "false").lower() == "true":
         raise HTTPException(
             status_code=501,
-            detail="La selección de carpetas nativa está desactivada en este entorno. "
-                   "Configure la ruta mediante la variable de entorno DB_PATH."
+            detail=(
+                "La selección de carpetas nativa está desactivada en este entorno. "
+                "Configure la ruta mediante la variable de entorno DB_PATH."
+            ),
         )
 
     result = {"path": None, "error": None}
@@ -62,18 +70,17 @@ def browse_folder():
             from tkinter import filedialog
 
             root = tk.Tk()
-            root.withdraw()          # hide the tiny root window
-            root.attributes("-topmost", True)  # bring dialog to front
+            root.withdraw()
+            root.attributes("-topmost", True)
             folder = filedialog.askdirectory(title="Seleccionar carpeta de base de datos")
             root.destroy()
             result["path"] = folder if folder else None
         except Exception as e:
             result["error"] = str(e)
 
-    # tkinter must run on its own thread in an async server context
     t = threading.Thread(target=_pick)
     t.start()
-    t.join(timeout=120)  # wait up to 2 minutes for user selection
+    t.join(timeout=120)
 
     if result["error"]:
         raise HTTPException(status_code=500, detail=result["error"])

@@ -3,6 +3,8 @@ import Recognition from "./pages/Recognition";
 import Identities from "./pages/Identities";
 import SystemInfo from "./pages/SystemInfo";
 import Logs from "./pages/Logs";
+import Login from "./pages/Login";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import "./index.css";
 
 const NAV = [
@@ -51,8 +53,23 @@ const PAGES = {
   sysinfo: <SystemInfo />,
 };
 
-export default function App() {
+function AppContent() {
+  const { user, logout, loading } = useAuth();
   const [active, setActive] = useState("recognition");
+
+  if (loading) {
+    return (
+      <div className="login-page">
+        <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     <div className="layout">
@@ -62,6 +79,7 @@ export default function App() {
           <h1>🛡️ DeepSecurity</h1>
           <span>Sistema de Identificación AI</span>
         </div>
+
         <ul className="sidebar-nav">
           {NAV.map((item) => (
             <li key={item.id}>
@@ -75,10 +93,34 @@ export default function App() {
             </li>
           ))}
         </ul>
+
+        {/* User info + logout */}
+        <div className="sidebar-footer">
+          <div className="sidebar-user" title={user.email}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} style={{ flexShrink: 0 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span>{user.email}</span>
+          </div>
+          <button className="sidebar-logout" onClick={logout}>
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Cerrar Sesión
+          </button>
+        </div>
       </aside>
 
       {/* ── Page content ── */}
       <main className="main">{PAGES[active]}</main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
