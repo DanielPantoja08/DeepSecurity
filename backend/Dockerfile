@@ -43,9 +43,9 @@ COPY backend/ ./backend/
 EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1
+# Defaults for development/docker; can be overridden at runtime
 ENV DB_PATH=/app/db/faces
 ENV DISABLE_NATIVE_FILE_PICKER=true
-# Force CPU — no GPU required
 ENV CUDA_VISIBLE_DEVICES=""
 
 CMD ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

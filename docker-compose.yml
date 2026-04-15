@@ -28,18 +28,17 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./db/faces:/app/db/faces
+      - registred_faces:/app/db/faces
       - ./backend:/app/backend
       - deepface_weights:/root/.deepface
       - ./recordings:/app/recordings
     environment:
-      - DB_PATH=/app/db/faces
+      # Required: network & database
       - CORS_ORIGINS=*
-      - DISABLE_NATIVE_FILE_PICKER=true
-      # Force CPU — no GPU required
-      - CUDA_VISIBLE_DEVICES=
       - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/deepsecurity
-      - JWT_SECRET=CHANGEME_replace_with_a_secure_random_secret
+      # Required: authentication secret (MUST be a secure random value in production)
+      # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+      - JWT_SECRET=${JWT_SECRET:-dev_insecure_secret_key_change_in_production}
     restart: unless-stopped
     command: ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
@@ -57,3 +56,4 @@ services:
 volumes:
   deepface_weights:
   postgres_data:
+  registred_faces:
