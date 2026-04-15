@@ -64,6 +64,7 @@ app = FastAPI(
     description="Face detection & recognition REST API powered by MTCNN + VGG-Face.",
     version="2.2.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 app.state.limiter = limiter
