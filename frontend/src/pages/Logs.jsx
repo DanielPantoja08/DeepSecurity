@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getRecordingStatus, getVideoRecordings, getRecordingFileUrl } from "../api/client";
+import { getVideoRecordings, getDownloadToken, getRecordingFileUrl } from "../api/client";
 
 export default function Logs() {
     const [recordings, setRecordings] = useState([]);
@@ -7,6 +7,7 @@ export default function Logs() {
     const [error, setError] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
     const [playingId, setPlayingId] = useState(null);
+    const [videoUrls, setVideoUrls] = useState({});
 
     useEffect(() => {
         const fetchData = async () => {
@@ -35,15 +36,26 @@ export default function Logs() {
         if (expandedId === id) setPlayingId(null);
     };
 
-    const handleWatch = (e, id) => {
+    const handleWatch = async (e, id) => {
         e.stopPropagation();
         setExpandedId(id);
         setPlayingId(id);
+        try {
+            const { token } = await getDownloadToken(id);
+            setVideoUrls((prev) => ({ ...prev, [id]: getRecordingFileUrl(id, token) }));
+        } catch (err) {
+            setError("No se pudo obtener el token de reproducción: " + err.message);
+        }
     };
 
-    const handleDownload = (e, id) => {
+    const handleDownload = async (e, id) => {
         e.stopPropagation();
-        window.open(getRecordingFileUrl(id, true), "_blank");
+        try {
+            const { token } = await getDownloadToken(id);
+            window.open(getRecordingFileUrl(id, token, true), "_blank");
+        } catch (err) {
+            setError("No se pudo descargar la grabación: " + err.message);
+        }
     };
 
     if (loading) return <div className="skeleton" style={{ height: 300, width: "100%" }} />;
@@ -149,15 +161,19 @@ export default function Logs() {
                                                         {/* Video Player Panel */}
                                                         {playingId === rec.id && (
                                                             <div style={{ borderRadius: "var(--radius)", overflow: "hidden", border: "1px solid var(--border)", background: "#000" }}>
-                                                                <video
-                                                                    key={rec.id}
-                                                                    controls
-                                                                    autoPlay
-                                                                    style={{ width: "100%", display: "block" }}
-                                                                >
-                                                                    <source src={getRecordingFileUrl(rec.id)} type="video/mp4" />
-                                                                    Tu navegador no soporta la reproducción de este video.
-                                                                </video>
+                                                                {videoUrls[rec.id] ? (
+                                                                    <video
+                                                                        key={videoUrls[rec.id]}
+                                                                        controls
+                                                                        autoPlay
+                                                                        style={{ width: "100%", display: "block" }}
+                                                                    >
+                                                                        <source src={videoUrls[rec.id]} type="video/mp4" />
+                                                                        Tu navegador no soporta la reproducción de este video.
+                                                                    </video>
+                                                                ) : (
+                                                                    <div style={{ padding: 20, color: "#aaa", textAlign: "center" }}>Cargando video…</div>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>

@@ -6,7 +6,7 @@ const AuthContext = createContext(null);
 const TOKEN_KEY = "ds_token";
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     getMe(token)
       .then((data) => setUser(data))
       .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
       })
@@ -30,12 +30,12 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const login = (newToken) => {
-    localStorage.setItem(TOKEN_KEY, newToken);
+    sessionStorage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
   };
 
   const logout = () => {
-    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
   };

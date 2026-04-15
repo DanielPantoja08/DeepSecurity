@@ -15,7 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.database import get_async_session
 from ..db.user import User
 
-JWT_SECRET = os.getenv("JWT_SECRET", "CHANGEME_replace_with_a_secure_random_secret")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 JWT_LIFETIME = int(os.getenv("JWT_LIFETIME_SECONDS", str(60 * 60 * 24)))  # 24 h
 
 

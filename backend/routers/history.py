@@ -1,19 +1,43 @@
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.users import current_active_user, get_user_from_query_token
+from ..auth.users import current_active_user
 from ..db import get_async_session, RecognitionLog, VideoRecording
 
 router = APIRouter(
     prefix="/api/history",
     tags=["history"],
 )
+
+# ── One-time download tokens ─────────────────────────────────────────────────
+# Maps token -> {recording_id, expires_at}
+_download_tokens: dict[str, dict] = {}
+_TOKEN_TTL_SECONDS = 300  # 5 minutes — long enough for range-request video streaming
+
+
+def _cleanup_tokens() -> None:
+    """Remove all expired tokens from the in-memory store."""
+    now = datetime.utcnow()
+    expired = [t for t, v in _download_tokens.items() if v["expires_at"] < now]
+    for t in expired:
+        del _download_tokens[t]
+
+
+def _validate_download_token(token: str, recording_id: int) -> bool:
+    _cleanup_tokens()
+    data = _download_tokens.get(token)
+    if not data:
+        return False
+    if data["recording_id"] != recording_id:
+        return False
+    return True
 
 
 # ── Response schemas ────────────────────────────────────────────────────────
@@ -76,22 +100,56 @@ async def get_recordings(
     return enriched
 
 
+@router.post("/recordings/{recording_id}/download-token")
+async def create_download_token(
+    recording_id: int,
+    session: AsyncSession = Depends(get_async_session),
+    _user=Depends(current_active_user),
+):
+    """
+    Issues a short-lived download token for a specific recording.
+    The token must be passed as ?download_token= when fetching the video file,
+    replacing the insecure practice of passing the user JWT in the URL.
+    """
+    recording = await session.get(VideoRecording, recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail="Grabación no encontrada")
+
+    _cleanup_tokens()
+    token = secrets.token_urlsafe(32)
+    _download_tokens[token] = {
+        "recording_id": recording_id,
+        "expires_at": datetime.utcnow() + timedelta(seconds=_TOKEN_TTL_SECONDS),
+    }
+    return {"token": token, "expires_in": _TOKEN_TTL_SECONDS}
+
+
 @router.get("/recordings/{recording_id}/file")
 async def get_recording_file(
     recording_id: int,
     request: Request,
     download: bool = False,
+    download_token: Optional[str] = None,
     session: AsyncSession = Depends(get_async_session),
-    _user=Depends(get_user_from_query_token),
 ):
+    """
+    Streams or downloads a recording file.
+    Requires a short-lived download token obtained from POST /recordings/{id}/download-token.
+    """
     import os
+
+    if not download_token or not _validate_download_token(download_token, recording_id):
+        raise HTTPException(
+            status_code=401,
+            detail="Token de descarga inválido o expirado. Solicite uno nuevo.",
+        )
 
     recording = await session.get(VideoRecording, recording_id)
     if not recording:
-        raise HTTPException(status_code=404, detail="Recording not found")
+        raise HTTPException(status_code=404, detail="Grabación no encontrada")
 
     if not os.path.exists(recording.file_path):
-        raise HTTPException(status_code=404, detail="Video file not found on server")
+        raise HTTPException(status_code=404, detail="Archivo de video no encontrado en el servidor")
 
     if download:
         return FileResponse(

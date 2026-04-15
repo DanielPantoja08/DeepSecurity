@@ -5,7 +5,7 @@ const BASE_URL = "";
 const TOKEN_KEY = "ds_token";
 
 function getAuthHeaders() {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = sessionStorage.getItem(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -20,18 +20,38 @@ async function apiFetch(url, options = {}) {
   };
   const res = await fetch(url, { ...options, headers });
   if (res.status === 401) {
-    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
     window.location.reload();
     return res;
   }
   return res;
 }
 
-export const getRecordingFileUrl = (id, download = false) => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const base = `${BASE_URL}/api/history/recordings/${id}/file${download ? "?download=true" : ""}`;
-  // Append token as query param for direct file/video URLs (browser can't set headers)
-  return token ? `${base}${download ? "&" : "?"}token=${token}` : base;
+/**
+ * Requests a short-lived download token for a specific recording.
+ * Must be called before getRecordingFileUrl to obtain the token parameter.
+ * @param {number} recordingId
+ * @returns {Promise<{token: string, expires_in: number}>}
+ */
+export async function getDownloadToken(recordingId) {
+  const res = await apiFetch(
+    `${BASE_URL}/api/history/recordings/${recordingId}/download-token`,
+    { method: "POST" }
+  );
+  if (!res.ok) throw new Error(`getDownloadToken: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Builds the URL for a recording file using a short-lived download token.
+ * @param {number} id - Recording ID
+ * @param {string} token - Short-lived token from getDownloadToken()
+ * @param {boolean} download - Whether to trigger a file download
+ */
+export const getRecordingFileUrl = (id, token, download = false) => {
+  const params = new URLSearchParams({ download_token: token });
+  if (download) params.set("download", "true");
+  return `${BASE_URL}/api/history/recordings/${id}/file?${params.toString()}`;
 };
 
 /**

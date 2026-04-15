@@ -13,6 +13,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.users import current_active_user
 from ..db import get_async_session, RecognitionLog, VideoRecording
+from ..limiter import limiter
+
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+_JPEG_SIG = b'\xff\xd8\xff'
+_PNG_SIG = b'\x89PNG'
+_WEBP_RIFF = b'RIFF'
+_WEBP_MARKER = b'WEBP'
+
+
+def _is_allowed_image(data: bytes) -> bool:
+    if len(data) < 12:
+        return False
+    if data[:3] == _JPEG_SIG:
+        return True
+    if data[:4] == _PNG_SIG:
+        return True
+    if data[:4] == _WEBP_RIFF and data[8:12] == _WEBP_MARKER:
+        return True
+    return False
 
 router = APIRouter(
     prefix="/api/recognize",
@@ -34,6 +53,7 @@ def _downscale(frame: np.ndarray, max_width: int = 640) -> tuple[np.ndarray, flo
 
 
 @router.post("")
+#@limiter.limit("30/minute")
 async def frame(
     request: Request,
     file: UploadFile = File(...),
@@ -44,6 +64,13 @@ async def frame(
     recorder = request.app.state.recorder
 
     contents = await file.read()
+
+    if len(contents) > _MAX_UPLOAD_BYTES:
+        return JSONResponse(status_code=413, content={"detail": "Imagen demasiado grande (máx 10 MB)"})
+
+    if not _is_allowed_image(contents):
+        return JSONResponse(status_code=415, content={"detail": "Formato no soportado. Use JPEG, PNG o WebP"})
+
     nparr = np.frombuffer(contents, np.uint8)
     frame_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
