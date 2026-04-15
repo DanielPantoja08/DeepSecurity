@@ -5,6 +5,7 @@ Exposes REST endpoints for face detection, recognition, and identity management.
 Run from the project root (DeepSecurity/):
     uvicorn backend.main:app --reload --port 8000
 """
+import asyncio
 import sys
 import os
 from contextlib import asynccontextmanager
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
     app.state.recognizer = FaceRecognizer(db_path=db_path)
     app.state.recorder = VideoRecorder(output_dir=os.path.join(ROOT_DIR, "recordings"))
     app.state.db_path = db_path
+    app.state.settings_lock = asyncio.Lock()  # 4.1: guard concurrent settings mutations
 
     print(f"[DeepSecurity] Models ready (DB loaded from {db_path}).")
     yield

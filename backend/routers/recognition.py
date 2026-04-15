@@ -1,7 +1,7 @@
 import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 import cv2
@@ -129,13 +129,22 @@ async def frame(
             }
         )
 
-        log = RecognitionLog(
-            person_name=name,
-            confidence=similarity,
-            timestamp=datetime.utcnow(),
-            video_id=recording_id,
+        # 4.2: skip duplicate logs for the same person within a 2-second window
+        two_secs_ago = datetime.utcnow() - timedelta(seconds=2)
+        recent = await session.execute(
+            select(RecognitionLog)
+            .where(RecognitionLog.person_name == name)
+            .where(RecognitionLog.timestamp >= two_secs_ago)
+            .limit(1)
         )
-        session.add(log)
+        if recent.scalars().first() is None:
+            log = RecognitionLog(
+                person_name=name,
+                confidence=similarity,
+                timestamp=datetime.utcnow(),
+                video_id=recording_id,
+            )
+            session.add(log)
 
         if record_frame is not None:
             box = face_info["box"]

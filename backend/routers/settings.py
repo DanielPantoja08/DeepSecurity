@@ -23,7 +23,7 @@ def get_settings(request: Request):
 
 
 @router.post("")
-def update_settings(settings: Settings, request: Request):
+async def update_settings(settings: Settings, request: Request):
     new_path = settings.db_path
 
     if not new_path or not new_path.strip():
@@ -40,9 +40,11 @@ def update_settings(settings: Settings, request: Request):
     if not os.path.isdir(new_path):
         raise HTTPException(status_code=400, detail="La ruta debe ser un directorio.")
 
-    request.app.state.db_path = new_path
-    request.app.state.recognizer.db_path = new_path
-    request.app.state.recognizer.load_cache()
+    # 4.1: serialize concurrent settings mutations so only one reload runs at a time
+    async with request.app.state.settings_lock:
+        request.app.state.db_path = new_path
+        request.app.state.recognizer.db_path = new_path
+        request.app.state.recognizer.load_cache()
 
     return {"message": "Settings updated", "db_path": new_path}
 

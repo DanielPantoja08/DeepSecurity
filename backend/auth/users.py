@@ -1,6 +1,9 @@
+import logging
 import os
 import uuid
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, schemas
@@ -74,17 +77,19 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         role = "superuser" if user.is_superuser else "user"
-        print(f"[auth] New {role} registered: {user.email}")
+        logger.info("[auth] New %s registered: %s", role, user.email)
 
     async def on_after_forgot_password(
         self, user: User, token: str, request: Optional[Request] = None
     ):
-        print(f"[auth] Password reset requested for {user.email}. Token: {token}")
+        # 4.6: do NOT log the token — it is a credential; deliver it via email in production
+        logger.warning("[auth] Password reset requested for %s (token not logged)", user.email)
 
     async def on_after_request_verify(
         self, user: User, token: str, request: Optional[Request] = None
     ):
-        print(f"[auth] Verification requested for {user.email}. Token: {token}")
+        # 4.6: same — omit verification token from logs
+        logger.info("[auth] Email verification requested for %s (token not logged)", user.email)
 
 
 async def get_user_manager(user_db=Depends(get_user_db)):

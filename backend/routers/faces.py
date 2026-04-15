@@ -1,10 +1,11 @@
+import asyncio
 import os
 import re
 import shutil
 import time
 from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from ..auth.users import current_active_user
@@ -31,35 +32,43 @@ def _db_path(request: Request) -> str:
     return request.app.state.db_path
 
 
-def _reload_recognizer(request: Request):
-    """Rebuild the in-memory embedding cache after DB changes."""
-    recognizer = request.app.state.recognizer
+def _rebuild_cache(recognizer) -> None:
+    """Sync function — FastAPI runs BackgroundTasks in a threadpool. (4.5)"""
     recognizer.reload_db()
+
+
+def _write_bytes(path: str, data: bytes) -> None:
+    with open(path, "wb") as f:
+        f.write(data)
 
 
 @router.get("")
 async def faces(request: Request):
     """Returns the list of registered identity names."""
     db = _db_path(request)
-    os.makedirs(db, exist_ok=True)
-    names = sorted(
-        d for d in os.listdir(db) if os.path.isdir(os.path.join(db, d))
-    )
+    await asyncio.to_thread(os.makedirs, db, exist_ok=True)
+    entries = await asyncio.to_thread(os.listdir, db)
+    names = sorted(d for d in entries if os.path.isdir(os.path.join(db, d)))
     return {"faces": names}
 
 
 @router.post("/{name}", status_code=201)
-async def face(name: str, request: Request, files: List[UploadFile] = File(...)):
+async def face(
+    name: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+):
     """
     Registers or extends an identity by saving one or more face images.
-    Invalidates the DeepFace representation cache after saving.
+    Invalidates the DeepFace representation cache in a background task. (4.4, 4.5)
     """
     _validate_name(name)
     db = _db_path(request)
-    os.makedirs(db, exist_ok=True)
+    await asyncio.to_thread(os.makedirs, db, exist_ok=True)
     person_dir = os.path.join(db, name)
     is_new = not os.path.exists(person_dir)
-    os.makedirs(person_dir, exist_ok=True)
+    await asyncio.to_thread(os.makedirs, person_dir, exist_ok=True)
 
     saved = 0
     for upload in files:
@@ -69,11 +78,11 @@ async def face(name: str, request: Request, files: List[UploadFile] = File(...))
         if not ext:
             ext = ".jpg"
         path = os.path.join(person_dir, f"face_{timestamp}_{saved}{ext}")
-        with open(path, "wb") as f:
-            f.write(content)
+        await asyncio.to_thread(_write_bytes, path, content)
         saved += 1
 
-    _reload_recognizer(request)
+    # 4.5: rebuild cache after response is sent; FastAPI runs sync tasks in threadpool
+    background_tasks.add_task(_rebuild_cache, request.app.state.recognizer)
 
     return {
         "message": f"{'Created' if is_new else 'Updated'} identity '{name}'",
@@ -82,13 +91,13 @@ async def face(name: str, request: Request, files: List[UploadFile] = File(...))
 
 
 @router.delete("/{name}", status_code=204)
-def delete_face(name: str, request: Request):
-    """Deletes all images for an identity."""
+async def delete_face(name: str, request: Request, background_tasks: BackgroundTasks):
+    """Deletes all images for an identity. (4.4, 4.5)"""
     _validate_name(name)
     db = _db_path(request)
     person_dir = os.path.join(db, name)
     if not os.path.exists(person_dir):
         raise HTTPException(status_code=404, detail=f"Identity '{name}' not found")
-    shutil.rmtree(person_dir)
-    _reload_recognizer(request)
+    await asyncio.to_thread(shutil.rmtree, person_dir)
+    background_tasks.add_task(_rebuild_cache, request.app.state.recognizer)
     return JSONResponse(status_code=204, content=None)
