@@ -8,16 +8,13 @@ const TOKEN_KEY = "ds_token";
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !!sessionStorage.getItem(TOKEN_KEY));
 
   // Verify token on mount and whenever it changes
   useEffect(() => {
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
+    if (!token) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     getMe(token)
       .then((data) => setUser(data))
@@ -47,6 +44,7 @@ export function AuthProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

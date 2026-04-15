@@ -214,7 +214,8 @@ async def stop_recording(
     recorder = request.app.state.recorder
     recording_id = getattr(request.app.state, "current_recording_id", None)
 
-    file_path, start_time, end_time = recorder.stop()
+    # recorder.stop() runs FFmpeg — offload to a thread to avoid blocking the event loop
+    file_path, start_time, end_time = await asyncio.to_thread(recorder.stop)
 
     if recording_id:
         result = await session.execute(

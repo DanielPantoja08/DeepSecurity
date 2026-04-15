@@ -39,7 +39,7 @@ export default function SystemInfo() {
             try {
                 const settings = await getSettings();
                 setDbPath(settings.db_path);
-            } catch (err) {
+            } catch {
                 setDbPath("Error al cargar");
             }
         }

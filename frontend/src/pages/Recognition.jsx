@@ -69,7 +69,7 @@ export default function Recognition() {
         interpRef.current = [];
         const ctx = overlayRef.current?.getContext("2d");
         if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
-    }, []);
+    }, [handleToggleRecording]);
 
     // ── Recording toggle ────────────────────────────────────────
     const handleToggleRecording = useCallback(async () => {
@@ -242,10 +242,11 @@ export default function Recognition() {
     }
 
     useEffect(() => {
+        const video = videoRef.current;
         return () => {
             cancelledRef.current = true;
-            if (videoRef.current?.srcObject) {
-                videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+            if (video?.srcObject) {
+                video.srcObject.getTracks().forEach((t) => t.stop());
             }
         };
     }, []);

@@ -4,24 +4,34 @@ import { getVideoRecordings, getDownloadToken, getRecordingFileUrl } from "../ap
 export default function Logs() {
     const [recordings, setRecordings] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [nextCursor, setNextCursor] = useState(null);
     const [error, setError] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
     const [playingId, setPlayingId] = useState(null);
     const [videoUrls, setVideoUrls] = useState({});
 
+    const fetchPage = async (cursor = null) => {
+        const isFirstPage = cursor === null;
+        if (isFirstPage) setLoading(true);
+        else setLoadingMore(true);
+        try {
+            const data = await getVideoRecordings({ cursor });
+            // Defensive: backend may return old array format during rolling deploys
+            const items = Array.isArray(data) ? data : (data?.items ?? []);
+            const next_cursor = Array.isArray(data) ? null : (data?.next_cursor ?? null);
+            setRecordings((prev) => isFirstPage ? items : [...prev, ...items]);
+            setNextCursor(next_cursor);
+        } catch (err) {
+            setError("Error al cargar grabaciones: " + err.message);
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const recsData = await getVideoRecordings();
-                setRecordings(recsData);
-            } catch (err) {
-                setError("Error al cargar grabaciones: " + err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
+        fetchPage();
     }, []);
 
     const formatDate = (isoStr) => {
@@ -83,8 +93,7 @@ export default function Logs() {
                         <tbody>
                             {recordings.length === 0 ? (
                                 <tr><td colSpan="4" style={{ textAlign: "center", padding: "40px 20px" }}>No hay grabaciones registradas.</td></tr>
-                            ) : (
-                                recordings.map((rec) => (
+                            ) : (recordings.map((rec) => (
                                     <React.Fragment key={rec.id}>
                                         <tr
                                             onClick={() => toggleExpand(rec.id)}
@@ -186,6 +195,19 @@ export default function Logs() {
                         </tbody>
                     </table>
                 </div>
+
+                {nextCursor !== null && (
+                    <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", textAlign: "center" }}>
+                        <button
+                            className="btn"
+                            onClick={() => fetchPage(nextCursor)}
+                            disabled={loadingMore}
+                            style={{ minWidth: 140, border: "1px solid var(--border)" }}
+                        >
+                            {loadingMore ? "Cargando…" : "Cargar más"}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

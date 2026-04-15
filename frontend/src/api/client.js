@@ -148,7 +148,9 @@ export async function browseFolder() {
     try {
       const data = await res.json();
       if (data.detail) msg = data.detail;
-    } catch (e) {}
+    } catch {
+      // ignore
+    }
     throw new Error(msg);
   }
   return res.json();
@@ -187,21 +189,27 @@ export const getRecordingStatus = async () => {
 };
 
 /**
- * Fetches the recognition logs.
- * @returns {Promise<Array>}
+ * Fetches a page of recognition logs (cursor-based pagination).
+ * @param {{ limit?: number, cursor?: number|null }} options
+ * @returns {Promise<{ items: Array, next_cursor: number|null }>}
  */
-export const getRecognitionLogs = async () => {
-  const res = await apiFetch(`${BASE_URL}/api/history/logs`);
-  if (!res.ok) throw new Error("Error fetching history");
+export async function getRecognitionLogs({ limit = 100, cursor = null } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor != null) params.set("cursor", String(cursor));
+  const res = await apiFetch(`${BASE_URL}/api/history/logs?${params}`);
+  if (!res.ok) throw new Error(`getRecognitionLogs: ${res.status}`);
   return res.json();
-};
+}
 
 /**
- * Fetches the video recordings metadata.
- * @returns {Promise<Array>}
+ * Fetches a page of video recordings metadata (cursor-based pagination).
+ * @param {{ limit?: number, cursor?: number|null }} options
+ * @returns {Promise<{ items: Array, next_cursor: number|null }>}
  */
-export async function getVideoRecordings() {
-  const res = await apiFetch(`${BASE_URL}/api/history/recordings`);
+export async function getVideoRecordings({ limit = 50, cursor = null } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor != null) params.set("cursor", String(cursor));
+  const res = await apiFetch(`${BASE_URL}/api/history/recordings?${params}`);
   if (!res.ok) throw new Error(`getVideoRecordings: ${res.status}`);
   return res.json();
 }

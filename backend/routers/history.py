@@ -1,6 +1,6 @@
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Any, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
@@ -55,33 +55,67 @@ class RecognitionLogOut(BaseModel):
 
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
-@router.get("/logs", response_model=List[RecognitionLogOut])
+@router.get("/logs")
 async def get_logs(
     session: AsyncSession = Depends(get_async_session),
     limit: int = 100,
+    cursor: Optional[int] = None,
     _user=Depends(current_active_user),
-):
-    result = await session.execute(
+) -> dict[str, Any]:
+    """
+    Returns up to ``limit`` recognition log entries ordered by id DESC.
+    Pass ``cursor=<last_id>`` from the previous page to get the next page.
+    Response: ``{ items: [...], next_cursor: int | null }``
+    """
+    query = (
         select(RecognitionLog)
-        .order_by(RecognitionLog.timestamp.desc())
-        .limit(limit)
+        .order_by(RecognitionLog.id.desc())
+        .limit(limit + 1)
     )
-    return result.scalars().all()
+    if cursor is not None:
+        query = query.where(RecognitionLog.id < cursor)
+
+    result = await session.execute(query)
+    rows = result.scalars().all()
+
+    has_more = len(rows) > limit
+    items = rows[:limit]
+    next_cursor: Optional[int] = items[-1].id if has_more and items else None
+
+    return {
+        "items": [RecognitionLogOut.model_validate(r) for r in items],
+        "next_cursor": next_cursor,
+    }
 
 
 @router.get("/recordings")
 async def get_recordings(
     session: AsyncSession = Depends(get_async_session),
     limit: int = 50,
+    cursor: Optional[int] = None,
     _user=Depends(current_active_user),
-):
-    result = await session.execute(
-        select(VideoRecording).order_by(VideoRecording.start_time.desc()).limit(limit)
+) -> dict[str, Any]:
+    """
+    Returns up to ``limit`` recordings ordered by id DESC.
+    Pass ``cursor=<last_id>`` from the previous page to get the next page.
+    Response: ``{ items: [...], next_cursor: int | null }``
+    """
+    query = (
+        select(VideoRecording)
+        .order_by(VideoRecording.id.desc())
+        .limit(limit + 1)
     )
+    if cursor is not None:
+        query = query.where(VideoRecording.id < cursor)
+
+    result = await session.execute(query)
     recordings = result.scalars().all()
 
-    enriched = []
-    for rec in recordings:
+    has_more = len(recordings) > limit
+    page = recordings[:limit]
+
+    enriched: list[dict[str, Any]] = []
+    for rec in page:
         people_result = await session.execute(
             select(RecognitionLog.person_name)
             .where(RecognitionLog.video_id == rec.id)
@@ -98,7 +132,8 @@ async def get_recordings(
             }
         )
 
-    return enriched
+    next_cursor: Optional[int] = page[-1].id if has_more and page else None
+    return {"items": enriched, "next_cursor": next_cursor}
 
 
 @router.post("/recordings/{recording_id}/download-token")
