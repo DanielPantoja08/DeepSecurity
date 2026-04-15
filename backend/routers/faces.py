@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Re
 from fastapi.responses import JSONResponse
 
 from ..auth.users import current_active_user
+from ..messages import INVALID_IDENTITY_NAME, IDENTITY_NOT_FOUND
 
 _NAME_RE = re.compile(r'^[a-zA-Z0-9_\- ]{1,64}$')
 
@@ -16,10 +17,7 @@ _NAME_RE = re.compile(r'^[a-zA-Z0-9_\- ]{1,64}$')
 def _validate_name(name: str) -> None:
     """Reject names that could cause path traversal or shell injection."""
     if not _NAME_RE.match(name):
-        raise HTTPException(
-            status_code=400,
-            detail="Nombre de identidad inválido. Use solo letras, números, espacios, guiones o guiones bajos (máx 64 caracteres).",
-        )
+        raise HTTPException(status_code=400, detail=INVALID_IDENTITY_NAME)
 
 router = APIRouter(
     prefix="/api/faces",
@@ -29,12 +27,12 @@ router = APIRouter(
 
 
 def _db_path(request: Request) -> str:
-    return request.app.state.db_path
+    return request.app.state.db_path  # type: ignore[no-any-return]
 
 
-def _rebuild_cache(recognizer) -> None:
+def _rebuild_cache(recognizer: object) -> None:
     """Sync function — FastAPI runs BackgroundTasks in a threadpool. (4.5)"""
-    recognizer.reload_db()
+    recognizer.reload_db()  # type: ignore[attr-defined]
 
 
 def _write_bytes(path: str, data: bytes) -> None:
@@ -43,7 +41,7 @@ def _write_bytes(path: str, data: bytes) -> None:
 
 
 @router.get("")
-async def faces(request: Request):
+async def faces(request: Request) -> dict[str, list[str]]:
     """Returns the list of registered identity names."""
     db = _db_path(request)
     await asyncio.to_thread(os.makedirs, db, exist_ok=True)
@@ -58,7 +56,7 @@ async def face(
     request: Request,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-):
+) -> dict[str, object]:
     """
     Registers or extends an identity by saving one or more face images.
     Invalidates the DeepFace representation cache in a background task. (4.4, 4.5)
@@ -91,13 +89,17 @@ async def face(
 
 
 @router.delete("/{name}", status_code=204)
-async def delete_face(name: str, request: Request, background_tasks: BackgroundTasks):
+async def delete_face(
+    name: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> JSONResponse:
     """Deletes all images for an identity. (4.4, 4.5)"""
     _validate_name(name)
     db = _db_path(request)
     person_dir = os.path.join(db, name)
     if not os.path.exists(person_dir):
-        raise HTTPException(status_code=404, detail=f"Identity '{name}' not found")
+        raise HTTPException(status_code=404, detail=IDENTITY_NOT_FOUND.format(name=name))
     await asyncio.to_thread(shutil.rmtree, person_dir)
     background_tasks.add_task(_rebuild_cache, request.app.state.recognizer)
     return JSONResponse(status_code=204, content=None)

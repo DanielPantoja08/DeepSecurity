@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.users import current_active_user
 from ..db import get_async_session, RecognitionLog, VideoRecording
+from ..messages import INVALID_DOWNLOAD_TOKEN, RECORDING_NOT_FOUND, VIDEO_FILE_NOT_FOUND
 
 router = APIRouter(
     prefix="/api/history",
@@ -30,7 +31,7 @@ def _cleanup_tokens() -> None:
         del _download_tokens[t]
 
 
-def _validate_download_token(token: str, recording_id: int) -> bool:
+def _validate_download_token(token: str, recording_id: int) -> bool:  # noqa: D103
     _cleanup_tokens()
     data = _download_tokens.get(token)
     if not data:
@@ -113,7 +114,7 @@ async def create_download_token(
     """
     recording = await session.get(VideoRecording, recording_id)
     if not recording:
-        raise HTTPException(status_code=404, detail="Grabación no encontrada")
+        raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
     _cleanup_tokens()
     token = secrets.token_urlsafe(32)
@@ -139,17 +140,14 @@ async def get_recording_file(
     import os
 
     if not download_token or not _validate_download_token(download_token, recording_id):
-        raise HTTPException(
-            status_code=401,
-            detail="Token de descarga inválido o expirado. Solicite uno nuevo.",
-        )
+        raise HTTPException(status_code=401, detail=INVALID_DOWNLOAD_TOKEN)
 
     recording = await session.get(VideoRecording, recording_id)
     if not recording:
-        raise HTTPException(status_code=404, detail="Grabación no encontrada")
+        raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
     if not os.path.exists(recording.file_path):
-        raise HTTPException(status_code=404, detail="Archivo de video no encontrado en el servidor")
+        raise HTTPException(status_code=404, detail=VIDEO_FILE_NOT_FOUND)
 
     if download:
         return FileResponse(

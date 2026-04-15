@@ -6,6 +6,7 @@ Run from the project root (DeepSecurity/):
     uvicorn backend.main:app --reload --port 8000
 """
 import asyncio
+import logging
 import sys
 import os
 from contextlib import asynccontextmanager
@@ -38,13 +39,15 @@ from backend.auth.users import (
 )
 from backend.limiter import limiter
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[DeepSecurity] Initialising database…")
+    logger.info("Initialising database…")
     await create_db_and_tables()
 
-    print("[DeepSecurity] Loading AI models…")
+    logger.info("Loading AI models…")
     db_path = os.getenv("DB_PATH", os.path.join(ROOT_DIR, "db", "faces"))
     os.makedirs(db_path, exist_ok=True)
 
@@ -54,9 +57,9 @@ async def lifespan(app: FastAPI):
     app.state.db_path = db_path
     app.state.settings_lock = asyncio.Lock()  # 4.1: guard concurrent settings mutations
 
-    print(f"[DeepSecurity] Models ready (DB loaded from {db_path}).")
+    logger.info("Models ready (DB loaded from %s).", db_path)
     yield
-    print("[DeepSecurity] Shutting down.")
+    logger.info("Shutting down.")
 
 
 app = FastAPI(
@@ -108,5 +111,5 @@ app.include_router(history.router)
 
 
 @app.get("/", tags=["health"])
-def health():
+def health() -> dict[str, str]:
     return {"status": "ok", "service": "DeepSecurity API v2"}

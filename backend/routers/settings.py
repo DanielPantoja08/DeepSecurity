@@ -1,10 +1,17 @@
 import os
 import threading
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..auth.users import current_active_user
+from ..messages import (
+    EMPTY_PATH,
+    INVALID_PATH,
+    NATIVE_PICKER_DISABLED,
+    PATH_NOT_A_DIRECTORY,
+)
 
 router = APIRouter(
     prefix="/api/settings",
@@ -18,16 +25,16 @@ class Settings(BaseModel):
 
 
 @router.get("")
-def get_settings(request: Request):
+def get_settings(request: Request) -> dict[str, str]:
     return {"db_path": request.app.state.db_path or ""}
 
 
 @router.post("")
-async def update_settings(settings: Settings, request: Request):
+async def update_settings(settings: Settings, request: Request) -> dict[str, str]:
     new_path = settings.db_path
 
     if not new_path or not new_path.strip():
-        raise HTTPException(status_code=400, detail="La ruta no puede estar vacía.")
+        raise HTTPException(status_code=400, detail=EMPTY_PATH)
 
     new_path = new_path.strip()
 
@@ -35,10 +42,10 @@ async def update_settings(settings: Settings, request: Request):
         try:
             os.makedirs(new_path, exist_ok=True)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Ruta inválida: {str(e)}")
+            raise HTTPException(status_code=400, detail=INVALID_PATH.format(error=e))
 
     if not os.path.isdir(new_path):
-        raise HTTPException(status_code=400, detail="La ruta debe ser un directorio.")
+        raise HTTPException(status_code=400, detail=PATH_NOT_A_DIRECTORY)
 
     # 4.1: serialize concurrent settings mutations so only one reload runs at a time
     async with request.app.state.settings_lock:
@@ -50,19 +57,13 @@ async def update_settings(settings: Settings, request: Request):
 
 
 @router.post("/browse")
-def browse_folder():
+def browse_folder() -> dict[str, Any]:
     """
     Opens a native OS folder picker dialog (tkinter) and returns the selected path.
     Runs on a separate thread because tkinter needs its own main-loop context.
     """
     if os.getenv("DISABLE_NATIVE_FILE_PICKER", "false").lower() == "true":
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "La selección de carpetas nativa está desactivada en este entorno. "
-                "Configure la ruta mediante la variable de entorno DB_PATH."
-            ),
-        )
+        raise HTTPException(status_code=501, detail=NATIVE_PICKER_DISABLED)
 
     result = {"path": None, "error": None}
 
