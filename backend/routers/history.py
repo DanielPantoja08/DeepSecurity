@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.users import current_active_user
 from ..db import get_async_session, RecognitionLog, VideoRecording
-from ..messages import INVALID_DOWNLOAD_TOKEN, RECORDING_NOT_FOUND, VIDEO_FILE_NOT_FOUND
+from ..messages import INVALID_DOWNLOAD_TOKEN, RECORDING_DELETED, RECORDING_NOT_FOUND, VIDEO_FILE_NOT_FOUND
 
 router = APIRouter(
     prefix="/api/history",
@@ -158,6 +158,43 @@ async def create_download_token(
         "expires_at": datetime.utcnow() + timedelta(seconds=_TOKEN_TTL_SECONDS),
     }
     return {"token": token, "expires_in": _TOKEN_TTL_SECONDS}
+
+
+@router.delete("/recordings/{recording_id}")
+async def delete_recording(
+    recording_id: int,
+    session: AsyncSession = Depends(get_async_session),
+    _user=Depends(current_active_user),
+):
+    """
+    Deletes a recording entry from the database and removes the video file from disk.
+    Associated recognition logs are left intact (video_id becomes NULL).
+    """
+    import os
+    from sqlalchemy import update
+
+    recording = await session.get(VideoRecording, recording_id)
+    if not recording:
+        raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
+
+    # Nullify video_id on related logs before deleting the recording
+    await session.execute(
+        update(RecognitionLog)
+        .where(RecognitionLog.video_id == recording_id)
+        .values(video_id=None)
+    )
+
+    file_path = recording.file_path
+    await session.delete(recording)
+    await session.commit()
+
+    if file_path and os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except OSError:
+            pass
+
+    return {"message": RECORDING_DELETED}
 
 
 @router.get("/recordings/{recording_id}/file")

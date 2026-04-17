@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getVideoRecordings, getDownloadToken, getRecordingFileUrl } from "../api/client";
+import { getVideoRecordings, getDownloadToken, getRecordingFileUrl, deleteRecording } from "../api/client";
 
 export default function Logs() {
     const [recordings, setRecordings] = useState([]);
@@ -10,6 +10,8 @@ export default function Logs() {
     const [expandedId, setExpandedId] = useState(null);
     const [playingId, setPlayingId] = useState(null);
     const [videoUrls, setVideoUrls] = useState({});
+    const [deletingId, setDeletingId] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
     const fetchPage = async (cursor = null) => {
         const isFirstPage = cursor === null;
@@ -58,6 +60,26 @@ export default function Logs() {
         }
     };
 
+    const handleDeleteClick = (e, id) => {
+        e.stopPropagation();
+        setConfirmDeleteId(id);
+    };
+
+    const handleDeleteConfirm = async (id) => {
+        setConfirmDeleteId(null);
+        setDeletingId(id);
+        try {
+            await deleteRecording(id);
+            setRecordings((prev) => prev.filter((r) => r.id !== id));
+            if (expandedId === id) setExpandedId(null);
+            if (playingId === id) setPlayingId(null);
+        } catch (err) {
+            setError("No se pudo eliminar la grabación: " + err.message);
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     const handleDownload = async (e, id) => {
         e.stopPropagation();
         try {
@@ -70,7 +92,42 @@ export default function Logs() {
 
     if (loading) return <div className="skeleton" style={{ height: 300, width: "100%" }} />;
 
+    const confirmRec = confirmDeleteId !== null && recordings.find((r) => r.id === confirmDeleteId);
+
     return (
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+        {confirmRec && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+                <div className="card" style={{ padding: "28px 32px", maxWidth: 400, width: "90%", textAlign: "center" }}>
+                    <div style={{ marginBottom: 12 }}>
+                        <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#dc2626" strokeWidth={1.5} style={{ display: "block", margin: "0 auto 12px" }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                        <h4 style={{ marginBottom: 8 }}>¿Eliminar grabación?</h4>
+                        <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                            Esta acción eliminará permanentemente el archivo de video y no se puede deshacer.
+                        </p>
+                        <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: 6 }}>
+                            {confirmRec.file_path.split(/[\\/]/).pop()}
+                        </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
+                        <button className="btn" onClick={() => setConfirmDeleteId(null)} style={{ minWidth: 100, border: "1px solid var(--border)" }}>
+                            Cancelar
+                        </button>
+                        <button
+                            className="btn"
+                            onClick={() => handleDeleteConfirm(confirmDeleteId)}
+                            style={{ minWidth: 100, background: "linear-gradient(135deg, #dc2626, #b91c1c)", color: "#fff", border: "1px solid #b91c1c" }}
+                        >
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         <div className="logs-page">
             <div className="page-header">
                 <h2>📜 Registro de Grabaciones e Historial</h2>
@@ -135,12 +192,27 @@ export default function Logs() {
                                                     <button
                                                         className="btn"
                                                         onClick={(e) => handleDownload(e, rec.id)}
-                                                        style={{ padding: "6px 12px", fontSize: "0.8rem", background: "var(--surface)", border: "1px solid var(--border)" }}
+                                                        style={{ padding: "6px 12px", fontSize: "0.8rem", background: "linear-gradient(135deg, #16a34a, #15803d)", color: "#fff", border: "1px solid #15803d", boxShadow: "0 0 12px rgba(22,163,74,0.25)" }}
                                                     >
                                                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                                         </svg>
                                                         Descargar
+                                                    </button>
+                                                    <button
+                                                        className="btn"
+                                                        onClick={(e) => handleDeleteClick(e, rec.id)}
+                                                        disabled={deletingId === rec.id}
+                                                        style={{ padding: "6px 12px", fontSize: "0.8rem", background: "linear-gradient(135deg, #dc2626, #b91c1c)", color: "#fff", border: "1px solid #b91c1c", boxShadow: "0 0 12px rgba(220,38,38,0.25)" }}
+                                                    >
+                                                        {deletingId === rec.id ? (
+                                                            <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
+                                                        ) : (
+                                                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        )}
+                                                        Eliminar
                                                     </button>
                                                 </div>
                                             </td>

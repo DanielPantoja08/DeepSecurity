@@ -202,6 +202,19 @@ export async function getRecognitionLogs({ limit = 100, cursor = null } = {}) {
 }
 
 /**
+ * Deletes a recording and its video file from the server.
+ * @param {number} recordingId
+ */
+export async function deleteRecording(recordingId) {
+  const res = await apiFetch(
+    `${BASE_URL}/api/history/recordings/${recordingId}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error(`deleteRecording: ${res.status}`);
+  return res.json();
+}
+
+/**
  * Fetches a page of video recordings metadata (cursor-based pagination).
  * @param {{ limit?: number, cursor?: number|null }} options
  * @returns {Promise<{ items: Array, next_cursor: number|null }>}
