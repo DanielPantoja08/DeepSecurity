@@ -25,6 +25,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
+from backend.core.antispoof import AntiSpoofChecker
 from backend.core.detector import FaceDetector
 from backend.core.recognizer import FaceRecognizer
 from backend.core.recorder import VideoRecorder
@@ -56,6 +57,21 @@ async def lifespan(app: FastAPI):
     app.state.recorder = VideoRecorder(output_dir=os.path.join(ROOT_DIR, "recordings"))
     app.state.db_path = db_path
     app.state.settings_lock = asyncio.Lock()  # 4.1: guard concurrent settings mutations
+
+    app.state.antispoof = AntiSpoofChecker()
+    app.state.antispoof_enabled = os.getenv("ANTISPOOF_ENABLED", "false").lower() == "true"
+    app.state.antispoof_threshold = float(os.getenv("ANTISPOOF_THRESHOLD", "0.5"))
+
+    if app.state.antispoof.available:
+        logger.info(
+            "Anti-spoofing disponible (PyTorch detectado). Habilitado=%s",
+            app.state.antispoof_enabled,
+        )
+    else:
+        logger.warning(
+            "Anti-spoofing no disponible (PyTorch no instalado). "
+            "Instale PyTorch para activar: uv pip install torch"
+        )
 
     logger.info("Models ready (DB loaded from %s).", db_path)
     yield

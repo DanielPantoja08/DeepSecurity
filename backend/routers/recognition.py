@@ -115,20 +115,44 @@ async def frame(
     tasks = [_recognise(f["crop"]) for f in valid_faces]
     identities = await asyncio.gather(*tasks)
 
+    # Anti-spoofing: run in parallel per-face if enabled and PyTorch is available.
+    antispoof = request.app.state.antispoof
+    antispoof_enabled = getattr(request.app.state, "antispoof_enabled", False)
+    antispoof_threshold = getattr(request.app.state, "antispoof_threshold", 0.5)
+    spoof_results = None
+
+    if antispoof_enabled and antispoof.available:
+        async def _check_spoof(bbox: dict):
+            return await loop.run_in_executor(
+                _pool,
+                antispoof.check,
+                rgb_frame,
+                (bbox["x"], bbox["y"], bbox["w"], bbox["h"]),
+            )
+        spoof_tasks = [_check_spoof(f["box"]) for f in valid_faces]
+        spoof_results = await asyncio.gather(*spoof_tasks)
+
     results: List[dict] = []
     recording_id = getattr(request.app.state, "current_recording_id", None)
     record_frame = frame_bgr.copy() if recorder.is_recording else None
 
-    for face_info, (name, distance) in zip(valid_faces, identities):
+    for i, (face_info, (name, distance)) in enumerate(zip(valid_faces, identities)):
         similarity = round(float(1 - distance), 3)
-        results.append(
-            {
-                "name": name,
-                "confidence_detection": round(face_info["confidence"], 3),
-                "similarity": similarity,
-                "box": face_info["box"],
-            }
-        )
+        entry: dict = {
+            "name": name,
+            "confidence_detection": round(face_info["confidence"], 3),
+            "similarity": similarity,
+            "box": face_info["box"],
+        }
+
+        is_spoof = False
+        if spoof_results is not None:
+            raw_is_real, score = spoof_results[i]            
+            entry["is_real"] = raw_is_real
+            entry["antispoof_score"] = round(score, 3)
+            is_spoof = not raw_is_real
+
+        results.append(entry)
 
         # 4.2: skip duplicate logs for the same person within a 2-second window
         two_secs_ago = datetime.utcnow() - timedelta(seconds=2)
@@ -149,7 +173,12 @@ async def frame(
 
         if record_frame is not None:
             box = face_info["box"]
-            bgr_color = (129, 185, 16) if name != "Unknown" else (68, 68, 239)
+            if is_spoof:
+                bgr_color = (0, 165, 245)   # amber (BGR) — spoofing detected
+            elif name != "Unknown":
+                bgr_color = (129, 185, 16)  # green — known face
+            else:
+                bgr_color = (68, 68, 239)   # red — unknown face
             cv2.rectangle(
                 record_frame,
                 (box["x"], box["y"]),
@@ -157,7 +186,11 @@ async def frame(
                 bgr_color,
                 2,
             )
-            label = f"{name} {int(similarity * 100)}%"
+            if is_spoof:
+                spoof_prob = int(entry.get('antispoof_score', 0) * 100)
+                label = f"SPOOF {spoof_prob}% (sin vida)"
+            else:
+                label = f"{name} {int(similarity * 100)}%"
             cv2.putText(
                 record_frame,
                 label,

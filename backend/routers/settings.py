@@ -22,15 +22,23 @@ router = APIRouter(
 
 class Settings(BaseModel):
     db_path: str
+    antispoof_enabled: bool | None = None
+    antispoof_threshold: float | None = None
 
 
 @router.get("")
-def get_settings(request: Request) -> dict[str, str]:
-    return {"db_path": request.app.state.db_path or ""}
+def get_settings(request: Request) -> dict:
+    antispoof = getattr(request.app.state, "antispoof", None)
+    return {
+        "db_path": request.app.state.db_path or "",
+        "antispoof_enabled": getattr(request.app.state, "antispoof_enabled", False),
+        "antispoof_threshold": getattr(request.app.state, "antispoof_threshold", 0.5),
+        "antispoof_available": antispoof.available if antispoof is not None else False,
+    }
 
 
 @router.post("")
-async def update_settings(settings: Settings, request: Request) -> dict[str, str]:
+async def update_settings(settings: Settings, request: Request) -> dict:
     new_path = settings.db_path
 
     if not new_path or not new_path.strip():
@@ -53,7 +61,20 @@ async def update_settings(settings: Settings, request: Request) -> dict[str, str
         request.app.state.recognizer.db_path = new_path
         request.app.state.recognizer.load_cache()
 
-    return {"message": "Settings updated", "db_path": new_path}
+    if settings.antispoof_enabled is not None:
+        request.app.state.antispoof_enabled = settings.antispoof_enabled
+
+    if settings.antispoof_threshold is not None:
+        request.app.state.antispoof_threshold = max(
+            0.0, min(1.0, settings.antispoof_threshold)
+        )
+
+    return {
+        "message": "Settings updated",
+        "db_path": new_path,
+        "antispoof_enabled": getattr(request.app.state, "antispoof_enabled", False),
+        "antispoof_threshold": getattr(request.app.state, "antispoof_threshold", 0.5),
+    }
 
 
 @router.post("/browse")

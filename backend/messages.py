@@ -25,6 +25,13 @@ NATIVE_PICKER_DISABLED = (
     "Configure la ruta mediante la variable de entorno DB_PATH."
 )
 
+# ── Anti-spoofing ─────────────────────────────────────────────────────────────
+ANTISPOOF_UNAVAILABLE = (
+    "Anti-spoofing no disponible. "
+    "Instale PyTorch con: uv pip install torch"
+)
+SPOOFING_DETECTED = "Spoofing detectado"
+
 # ── History ──────────────────────────────────────────────────────────────────
 RECORDING_NOT_FOUND = "Grabación no encontrada"
 RECORDING_DELETED = "Grabación eliminada correctamente"

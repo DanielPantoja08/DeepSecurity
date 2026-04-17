@@ -21,6 +21,10 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Set INSTALL_ANTISPOOF=true in .env (or shell) to include PyTorch CPU
+        # in the image and enable the anti-spoofing module.
+        INSTALL_ANTISPOOF: ${INSTALL_ANTISPOOF:-true}
     container_name: deepsecurity-api
     ports:
       - "8000:8000"
@@ -39,6 +43,11 @@ services:
       # Required: authentication secret (MUST be a secure random value in production)
       # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
       - JWT_SECRET=${JWT_SECRET:-dev_insecure_secret_key_change_in_production}
+      # ── Anti-spoofing (optional) ─────────────────────────────────────────────
+      # Requires INSTALL_ANTISPOOF=true at build time (installs PyTorch CPU).
+      - ANTISPOOF_ENABLED=${ANTISPOOF_ENABLED:-true}
+      # Score threshold 0.0–1.0; faces scoring below this are flagged as spoofed.
+      - ANTISPOOF_THRESHOLD=${ANTISPOOF_THRESHOLD:-0.5}
     restart: unless-stopped
     command: ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
