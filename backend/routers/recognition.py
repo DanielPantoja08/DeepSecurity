@@ -15,6 +15,7 @@ from ..auth.users import current_active_user
 from ..db import get_async_session, RecognitionLog, VideoRecording
 from ..limiter import limiter
 from ..messages import IMAGE_TOO_LARGE, UNSUPPORTED_IMAGE_FORMAT
+from .faces import _get_user_recognizer
 
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 _JPEG_SIG = b'\xff\xd8\xff'
@@ -59,9 +60,10 @@ async def frame(
     request: Request,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_async_session),
+    user=Depends(current_active_user),
 ):
     detector = request.app.state.detector
-    recognizer = request.app.state.recognizer
+    recognizer = _get_user_recognizer(request, str(user.id))
     recorder = request.app.state.recorder
 
     contents = await file.read()
@@ -168,6 +170,7 @@ async def frame(
                 confidence=similarity,
                 timestamp=datetime.utcnow(),
                 video_id=recording_id,
+                user_id=str(user.id),
             )
             session.add(log)
 
@@ -188,7 +191,7 @@ async def frame(
             )
             if is_spoof:
                 spoof_prob = int(entry.get('antispoof_score', 0) * 100)
-                label = f"SPOOF {spoof_prob}% (sin vida)"
+                label = f"SPOOF {spoof_prob}% "
             else:
                 label = f"{name} {int(similarity * 100)}%"
             cv2.putText(
@@ -212,6 +215,7 @@ async def frame(
 async def start_recording(
     request: Request,
     session: AsyncSession = Depends(get_async_session),
+    user=Depends(current_active_user),
 ):
     recorder = request.app.state.recorder
     recorder.start()
@@ -219,6 +223,7 @@ async def start_recording(
     recording = VideoRecording(
         file_path=recorder.current_file,
         start_time=recorder.start_time,
+        user_id=str(user.id),
     )
     session.add(recording)
     await session.commit()

@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
     os.makedirs(db_path, exist_ok=True)
 
     app.state.detector = FaceDetector()
-    app.state.recognizer = FaceRecognizer(db_path=db_path)
+    app.state.recognizer_cache: dict = {}  # user_id (str) -> FaceRecognizer
     app.state.recorder = VideoRecorder(output_dir=os.path.join(ROOT_DIR, "recordings"))
     app.state.db_path = db_path
     app.state.settings_lock = asyncio.Lock()  # 4.1: guard concurrent settings mutations

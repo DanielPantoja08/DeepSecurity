@@ -5,6 +5,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
 
+
+
 class VideoRecording(Base):
     __tablename__ = "videorecording"
 
@@ -12,6 +14,7 @@ class VideoRecording(Base):
     file_path: Mapped[str] = mapped_column(String)
     start_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
     logs: Mapped[List["RecognitionLog"]] = relationship(back_populates="video")
 
@@ -26,6 +29,7 @@ class RecognitionLog(Base):
     video_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("videorecording.id"), nullable=True
     )
+    user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
 
     video: Mapped[Optional["VideoRecording"]] = relationship(back_populates="logs")
 

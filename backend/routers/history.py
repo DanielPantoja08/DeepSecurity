@@ -63,12 +63,13 @@ async def get_logs(
     _user=Depends(current_active_user),
 ) -> dict[str, Any]:
     """
-    Returns up to ``limit`` recognition log entries ordered by id DESC.
+    Returns up to ``limit`` recognition log entries for the current user, ordered by id DESC.
     Pass ``cursor=<last_id>`` from the previous page to get the next page.
     Response: ``{ items: [...], next_cursor: int | null }``
     """
     query = (
         select(RecognitionLog)
+        .where(RecognitionLog.user_id == str(_user.id))
         .order_by(RecognitionLog.id.desc())
         .limit(limit + 1)
     )
@@ -96,12 +97,13 @@ async def get_recordings(
     _user=Depends(current_active_user),
 ) -> dict[str, Any]:
     """
-    Returns up to ``limit`` recordings ordered by id DESC.
+    Returns up to ``limit`` recordings for the current user, ordered by id DESC.
     Pass ``cursor=<last_id>`` from the previous page to get the next page.
     Response: ``{ items: [...], next_cursor: int | null }``
     """
     query = (
         select(VideoRecording)
+        .where(VideoRecording.user_id == str(_user.id))
         .order_by(VideoRecording.id.desc())
         .limit(limit + 1)
     )
@@ -148,7 +150,7 @@ async def create_download_token(
     replacing the insecure practice of passing the user JWT in the URL.
     """
     recording = await session.get(VideoRecording, recording_id)
-    if not recording:
+    if not recording or recording.user_id != str(_user.id):
         raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
     _cleanup_tokens()
@@ -174,7 +176,7 @@ async def delete_recording(
     from sqlalchemy import update
 
     recording = await session.get(VideoRecording, recording_id)
-    if not recording:
+    if not recording or recording.user_id != str(_user.id):
         raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
     # Nullify video_id on related logs before deleting the recording
