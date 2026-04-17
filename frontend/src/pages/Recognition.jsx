@@ -217,7 +217,7 @@ export default function Recognition() {
             const { x, y, w, h } = face.interp || face.box;
             const isSpoof = face.is_real === false;
             const isKnown = face.name !== "Unknown";
-            const color = isSpoof ? COLORS.spoof : (isKnown ? COLORS.known : COLORS.unknown);
+            const color = !isKnown ? COLORS.unknown : (isSpoof ? COLORS.spoof : COLORS.known);
             const label = isKnown ? `${face.name}  ${Math.round(face.similarity * 100)}%` : "Desconocido";
 
             ctx.shadowColor = color;
@@ -238,7 +238,7 @@ export default function Recognition() {
             ctx.roundRect(lx, ly, textW, labelH, 4);
             ctx.fill();
 
-            ctx.fillStyle = isKnown ? "#000" : (isSpoof ? "#000" : "#fff");
+            ctx.fillStyle = !isKnown ? "#fff" : "#000";
             ctx.fillText(label, lx + 8, ly + 16);
         });
     }
@@ -375,13 +375,13 @@ export default function Recognition() {
                     {faces.map((f, i) => {
                         const isSpoof = f.is_real === false;
                         const isKnown = f.name !== "Unknown";
-                        const dotClass = isSpoof ? "dot-orange" : (isKnown ? "dot-green" : "dot-red");
+                        const dotClass = !isKnown ? "dot-red" : (isSpoof ? "dot-orange" : "dot-green");
                         const displayName = isKnown ? f.name : "Desconocido";
                         return (
                             <div key={i} className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-                                <span className={`dot ${dotClass}`} style={isSpoof ? { backgroundColor: "#f59e0b" } : {}} />
+                                <span className={`dot ${dotClass}`} style={(isKnown && isSpoof) ? { backgroundColor: "#f59e0b" } : {}} />
                                 <div>
-                                    <div style={{ fontWeight: 600, color: isSpoof ? "#f59e0b" : undefined }}>{displayName}</div>
+                                    <div style={{ fontWeight: 600, color: (isKnown && isSpoof) ? "#f59e0b" : undefined }}>{displayName}</div>
                                     <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
                                         Similitud: {Math.round(f.similarity * 100)}%
                                         {f.antispoof_score !== undefined && (

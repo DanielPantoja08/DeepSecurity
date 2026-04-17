@@ -179,12 +179,12 @@ async def frame(
 
         if record_frame is not None:
             box = face_info["box"]
-            if is_spoof:
-                bgr_color = (0, 165, 245)   # amber (BGR) — spoofing detected
-            elif name != "Unknown":
-                bgr_color = (129, 185, 16)  # green — known face
+            if name == "Unknown":
+                bgr_color = (68, 68, 239)   # red — unknown face (regardless of spoof)
+            elif is_spoof:
+                bgr_color = (0, 165, 245)   # amber — known face but spoofing detected
             else:
-                bgr_color = (68, 68, 239)   # red — unknown face
+                bgr_color = (129, 185, 16)  # green — known face, real
             cv2.rectangle(
                 record_frame,
                 (box["x"], box["y"]),
@@ -192,9 +192,11 @@ async def frame(
                 bgr_color,
                 2,
             )
-            if is_spoof:
-                spoof_prob = int(entry.get('antispoof_score', 0) * 100)
-                label = f"SPOOF {spoof_prob}% "
+            if name == "Unknown":
+                label = f"Unknown {int(similarity * 100)}%"
+            #elif is_spoof:
+            #    spoof_prob = int(entry.get('antispoof_score', 0) * 100)
+            #    label = f"SPOOF {spoof_prob}%"
             else:
                 label = f"{name} {int(similarity * 100)}%"
             cv2.putText(
