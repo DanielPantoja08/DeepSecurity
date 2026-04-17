@@ -194,9 +194,7 @@ async def frame(
             )
             if name == "Unknown":
                 label = f"Unknown {int(similarity * 100)}%"
-            #elif is_spoof:
-            #    spoof_prob = int(entry.get('antispoof_score', 0) * 100)
-            #    label = f"SPOOF {spoof_prob}%"
+            
             else:
                 label = f"{name} {int(similarity * 100)}%"
             cv2.putText(

@@ -28,6 +28,9 @@ async def create_db_and_tables():
         await conn.execute(text(
             "ALTER TABLE recognitionlog ADD COLUMN IF NOT EXISTS antispoof_score FLOAT"
         ))
+        await conn.execute(text(
+            "ALTER TABLE videorecording ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
 
 
 async def get_async_session() -> AsyncSession:

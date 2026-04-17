@@ -5,7 +5,7 @@ from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, outerjoin
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.users import current_active_user
@@ -49,6 +49,7 @@ class RecognitionLogOut(BaseModel):
     confidence: float
     timestamp: datetime
     video_id: Optional[int] = None
+    video_is_deleted: Optional[bool] = None
     is_spoof: bool = False
     antispoof_score: Optional[float] = None
 
@@ -72,7 +73,8 @@ async def get_logs(
     Response: ``{ items: [...], next_cursor: int | null }``
     """
     query = (
-        select(RecognitionLog)
+        select(RecognitionLog, VideoRecording.is_deleted.label("video_is_deleted"))
+        .outerjoin(VideoRecording, RecognitionLog.video_id == VideoRecording.id)
         .where(RecognitionLog.user_id == str(_user.id))
         .order_by(RecognitionLog.id.desc())
         .limit(limit + 1)
@@ -83,14 +85,20 @@ async def get_logs(
         query = query.where(RecognitionLog.video_id == video_id)
 
     result = await session.execute(query)
-    rows = result.scalars().all()
+    rows = result.all()
 
     has_more = len(rows) > limit
     items = rows[:limit]
-    next_cursor: Optional[int] = items[-1].id if has_more and items else None
+    next_cursor: Optional[int] = items[-1][0].id if has_more and items else None
+
+    out = []
+    for log, vid_deleted in items:
+        data = RecognitionLogOut.model_validate(log)
+        data.video_is_deleted = vid_deleted
+        out.append(data)
 
     return {
-        "items": [RecognitionLogOut.model_validate(r) for r in items],
+        "items": out,
         "next_cursor": next_cursor,
     }
 
@@ -110,6 +118,7 @@ async def get_recordings(
     query = (
         select(VideoRecording)
         .where(VideoRecording.user_id == str(_user.id))
+        .where(VideoRecording.is_deleted == False)  # noqa: E712
         .order_by(VideoRecording.id.desc())
         .limit(limit + 1)
     )
@@ -136,6 +145,7 @@ async def get_recordings(
                 "file_path": rec.file_path,
                 "start_time": rec.start_time,
                 "end_time": rec.end_time,
+                "is_deleted": rec.is_deleted,
                 "detected_people": unique_people,
             }
         )
@@ -156,7 +166,7 @@ async def create_download_token(
     replacing the insecure practice of passing the user JWT in the URL.
     """
     recording = await session.get(VideoRecording, recording_id)
-    if not recording or recording.user_id != str(_user.id):
+    if not recording or recording.user_id != str(_user.id) or recording.is_deleted:
         raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
     _cleanup_tokens()
@@ -175,30 +185,21 @@ async def delete_recording(
     _user=Depends(current_active_user),
 ):
     """
-    Deletes a recording entry from the database and removes the video file from disk.
-    Associated recognition logs are left intact (video_id becomes NULL).
+    Marks a recording as deleted (soft-delete) and removes the video file from disk.
+    The database row and all associated recognition log references are preserved.
     """
     import os
-    from sqlalchemy import update
 
     recording = await session.get(VideoRecording, recording_id)
     if not recording or recording.user_id != str(_user.id):
         raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
-    # Nullify video_id on related logs before deleting the recording
-    await session.execute(
-        update(RecognitionLog)
-        .where(RecognitionLog.video_id == recording_id)
-        .values(video_id=None)
-    )
-
-    file_path = recording.file_path
-    await session.delete(recording)
+    recording.is_deleted = True
     await session.commit()
 
-    if file_path and os.path.exists(file_path):
+    if recording.file_path and os.path.exists(recording.file_path):
         try:
-            os.remove(file_path)
+            os.remove(recording.file_path)
         except OSError:
             pass
 
@@ -223,7 +224,7 @@ async def get_recording_file(
         raise HTTPException(status_code=401, detail=INVALID_DOWNLOAD_TOKEN)
 
     recording = await session.get(VideoRecording, recording_id)
-    if not recording:
+    if not recording or recording.is_deleted:
         raise HTTPException(status_code=404, detail=RECORDING_NOT_FOUND)
 
     if not os.path.exists(recording.file_path):

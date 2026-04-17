@@ -15,6 +15,7 @@ class VideoRecording(Base):
     start_time: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     end_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     logs: Mapped[List["RecognitionLog"]] = relationship(back_populates="video")
 
