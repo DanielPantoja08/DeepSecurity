@@ -46,13 +46,6 @@ const NAV = [
   },
 ];
 
-const PAGES = {
-  recognition: <Recognition />,
-  identities: <Identities />,
-  logs: <Logs />,
-  sysinfo: <SystemInfo />,
-};
-
 function AppContent() {
   const { user, logout, loading } = useAuth();
   const [active, setActive] = useState("recognition");
@@ -112,7 +105,12 @@ function AppContent() {
       </aside>
 
       {/* ── Page content ── */}
-      <main className="main">{PAGES[active]}</main>
+      <main className="main">
+        {active === "recognition" && <Recognition />}
+        {active === "identities" && <Identities />}
+        {active === "logs" && <Logs />}
+        {active === "sysinfo" && <SystemInfo />}
+      </main>
     </div>
   );
 }

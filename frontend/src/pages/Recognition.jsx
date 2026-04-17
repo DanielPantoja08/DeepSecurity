@@ -53,24 +53,6 @@ export default function Recognition() {
         }
     }, []);
 
-    const stopCamera = useCallback(() => {
-        if (isRecordingRef.current) handleToggleRecording(); // Stop recording if camera stops
-        cancelledRef.current = true;
-        if (videoRef.current?.srcObject) {
-            videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
-            videoRef.current.srcObject = null;
-        }
-        if (animFrameRef.current) {
-            cancelAnimationFrame(animFrameRef.current);
-            animFrameRef.current = null;
-        }
-        setRunning(false);
-        setFaces([]);
-        interpRef.current = [];
-        const ctx = overlayRef.current?.getContext("2d");
-        if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
-    }, [handleToggleRecording]);
-
     // ── Recording toggle ────────────────────────────────────────
     const handleToggleRecording = useCallback(async () => {
         if (!running) return;
@@ -89,6 +71,24 @@ export default function Recognition() {
             setRecordingLoading(false);
         }
     }, [running]);
+
+    const stopCamera = useCallback(() => {
+        if (isRecordingRef.current) handleToggleRecording(); // Stop recording if camera stops
+        cancelledRef.current = true;
+        if (videoRef.current?.srcObject) {
+            videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+            videoRef.current.srcObject = null;
+        }
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
+        setRunning(false);
+        setFaces([]);
+        interpRef.current = [];
+        const ctx = overlayRef.current?.getContext("2d");
+        if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
+    }, [handleToggleRecording]);
 
     // ── Response-gated capture loop ─────────────────────────────
     useEffect(() => {
