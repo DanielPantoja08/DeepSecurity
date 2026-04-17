@@ -27,5 +27,6 @@ NATIVE_PICKER_DISABLED = (
 
 # ── History ──────────────────────────────────────────────────────────────────
 RECORDING_NOT_FOUND = "Grabación no encontrada"
+RECORDING_DELETED = "Grabación eliminada correctamente"
 INVALID_DOWNLOAD_TOKEN = "Token de descarga inválido o expirado. Solicite uno nuevo."
 VIDEO_FILE_NOT_FOUND = "Archivo de video no encontrado en el servidor"
