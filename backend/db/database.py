@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
@@ -20,6 +21,13 @@ class Base(DeclarativeBase):
 async def create_db_and_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Incremental column migrations (safe to re-run — IF NOT EXISTS)
+        await conn.execute(text(
+            "ALTER TABLE recognitionlog ADD COLUMN IF NOT EXISTS is_spoof BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE recognitionlog ADD COLUMN IF NOT EXISTS antispoof_score FLOAT"
+        ))
 
 
 async def get_async_session() -> AsyncSession:

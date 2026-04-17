@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import Index, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Boolean, Index, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -30,6 +30,8 @@ class RecognitionLog(Base):
         Integer, ForeignKey("videorecording.id"), nullable=True
     )
     user_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    is_spoof: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    antispoof_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     video: Mapped[Optional["VideoRecording"]] = relationship(back_populates="logs")
 

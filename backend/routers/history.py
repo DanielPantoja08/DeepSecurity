@@ -49,6 +49,8 @@ class RecognitionLogOut(BaseModel):
     confidence: float
     timestamp: datetime
     video_id: Optional[int] = None
+    is_spoof: bool = False
+    antispoof_score: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -60,11 +62,13 @@ async def get_logs(
     session: AsyncSession = Depends(get_async_session),
     limit: int = 100,
     cursor: Optional[int] = None,
+    video_id: Optional[int] = None,
     _user=Depends(current_active_user),
 ) -> dict[str, Any]:
     """
     Returns up to ``limit`` recognition log entries for the current user, ordered by id DESC.
     Pass ``cursor=<last_id>`` from the previous page to get the next page.
+    Pass ``video_id`` to filter logs belonging to a specific recording.
     Response: ``{ items: [...], next_cursor: int | null }``
     """
     query = (
@@ -75,6 +79,8 @@ async def get_logs(
     )
     if cursor is not None:
         query = query.where(RecognitionLog.id < cursor)
+    if video_id is not None:
+        query = query.where(RecognitionLog.video_id == video_id)
 
     result = await session.execute(query)
     rows = result.scalars().all()

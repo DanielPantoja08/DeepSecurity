@@ -193,9 +193,10 @@ export const getRecordingStatus = async () => {
  * @param {{ limit?: number, cursor?: number|null }} options
  * @returns {Promise<{ items: Array, next_cursor: number|null }>}
  */
-export async function getRecognitionLogs({ limit = 100, cursor = null } = {}) {
+export async function getRecognitionLogs({ limit = 100, cursor = null, videoId = null } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor != null) params.set("cursor", String(cursor));
+  if (videoId != null) params.set("video_id", String(videoId));
   const res = await apiFetch(`${BASE_URL}/api/history/logs?${params}`);
   if (!res.ok) throw new Error(`getRecognitionLogs: ${res.status}`);
   return res.json();

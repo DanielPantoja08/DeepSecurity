@@ -156,23 +156,26 @@ async def frame(
 
         results.append(entry)
 
-        # 4.2: skip duplicate logs for the same person within a 2-second window
-        two_secs_ago = datetime.utcnow() - timedelta(seconds=2)
-        recent = await session.execute(
-            select(RecognitionLog)
-            .where(RecognitionLog.person_name == name)
-            .where(RecognitionLog.timestamp >= two_secs_ago)
-            .limit(1)
-        )
-        if recent.scalars().first() is None:
-            log = RecognitionLog(
-                person_name=name,
-                confidence=similarity,
-                timestamp=datetime.utcnow(),
-                video_id=recording_id,
-                user_id=str(user.id),
+        # Only persist logs while a recording is active
+        if recorder.is_recording:
+            two_secs_ago = datetime.utcnow() - timedelta(seconds=2)
+            recent = await session.execute(
+                select(RecognitionLog)
+                .where(RecognitionLog.person_name == name)
+                .where(RecognitionLog.timestamp >= two_secs_ago)
+                .limit(1)
             )
-            session.add(log)
+            if recent.scalars().first() is None:
+                log = RecognitionLog(
+                    person_name=name,
+                    confidence=similarity,
+                    timestamp=datetime.utcnow(),
+                    video_id=recording_id,
+                    user_id=str(user.id),
+                    is_spoof=is_spoof,
+                    antispoof_score=entry.get("antispoof_score"),
+                )
+                session.add(log)
 
         if record_frame is not None:
             box = face_info["box"]
@@ -262,6 +265,8 @@ async def stop_recording(
         recording = result.scalars().first()
         if recording:
             recording.end_time = end_time
+            if file_path:
+                recording.file_path = file_path
             session.add(recording)
             await session.commit()
             await session.refresh(recording)
