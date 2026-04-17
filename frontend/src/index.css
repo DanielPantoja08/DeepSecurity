@@ -307,6 +307,12 @@ body {
   box-shadow: 0 0 8px #ef4444;
 }
 
+/* ── Table container (horizontal scroll on mobile) ───────────── */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -520,4 +526,119 @@ body {
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   display: inline-block;
+}
+
+/* ── Mobile top bar ──────────────────────────────────────────── */
+.mobile-topbar {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.menu-toggle {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+.menu-toggle:hover { background: var(--border); }
+
+.mobile-brand {
+  font-size: 1rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Sidebar overlay (mobile) ────────────────────────────────── */
+.sidebar-overlay {
+  display: none;
+}
+
+/* ── Responsive detail grid (Logs expanded row) ──────────────── */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.detail-grid--playing {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ── Breakpoint: tablet / mobile (≤768px) ────────────────────── */
+@media (max-width: 768px) {
+  /* Sidebar slides in from left as overlay */
+  .sidebar {
+    position: fixed;
+    left: calc(-1 * var(--sidebar-w));
+    top: 0;
+    height: 100vh;
+    z-index: 200;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 32px rgba(0, 0, 0, 0.5);
+  }
+  .sidebar.open { left: 0; }
+
+  /* Backdrop */
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 199;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Main content fills full width */
+  .main { padding: clamp(1rem, 5vw, 1.5rem); }
+
+  /* Show hamburger topbar */
+  .mobile-topbar { display: flex; }
+
+  /* Page header adjustments */
+  .page-header { margin-bottom: 20px; }
+  .page-header h2 { font-size: 1.3rem; }
+
+  /* Card tighter padding */
+  .card { padding: 16px; }
+
+  /* Login card: full-width with margins */
+  .login-card {
+    padding: 32px 20px;
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+  }
+
+  /* Detail grid stacks vertically */
+  .detail-grid--playing { grid-template-columns: 1fr; }
+}
+
+/* ── Breakpoint: small phones (≤480px) ───────────────────────── */
+@media (max-width: 480px) {
+  .main { padding: 1rem; }
+  .page-header h2 { font-size: 1.1rem; }
+
+  /* Touch-friendly minimum button size */
+  .btn { min-height: 44px; }
+
+  /* Tab buttons compact */
+  .tab-btn { padding: 8px 12px; font-size: 0.8rem; }
+
+  /* Table actions: wrap to column */
+  .table td { padding: 10px 8px; }
+  .table th { padding: 8px; }
 }

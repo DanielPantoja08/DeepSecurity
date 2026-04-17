@@ -222,7 +222,7 @@ export default function Logs() {
                                             <tr style={{ background: "var(--surface)" }}>
                                                 <td></td>
                                                 <td colSpan="3" style={{ padding: "20px 24px" }}>
-                                                    <div style={{ display: "grid", gridTemplateColumns: playingId === rec.id ? "1fr 1fr" : "1fr", gap: 24, alignItems: "start" }}>
+                                                    <div className={`detail-grid${playingId === rec.id ? " detail-grid--playing" : ""}`}>
                                                         {/* Info Panel */}
                                                         <div>
                                                             <h5 style={{ marginBottom: 12, fontSize: "0.95rem", fontWeight: 600 }}>Personas Identificadas (Consolidado):</h5>

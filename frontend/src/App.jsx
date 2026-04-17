@@ -49,6 +49,12 @@ const NAV = [
 function AppContent() {
   const { user, logout, loading } = useAuth();
   const [active, setActive] = useState("recognition");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const navigate = (id) => {
+    setActive(id);
+    setSidebarOpen(false);
+  };
 
   if (loading) {
     return (
@@ -66,8 +72,12 @@ function AppContent() {
 
   return (
     <div className="layout">
+      {sidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* ── Sidebar ── */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
         <div className="sidebar-brand">
           <h1>🛡️ DeepSecurity</h1>
           <span>Sistema de Identificación AI</span>
@@ -78,7 +88,7 @@ function AppContent() {
             <li key={item.id}>
               <button
                 className={active === item.id ? "active" : ""}
-                onClick={() => setActive(item.id)}
+                onClick={() => navigate(item.id)}
               >
                 {item.icon}
                 {item.label}
@@ -106,6 +116,15 @@ function AppContent() {
 
       {/* ── Page content ── */}
       <main className="main">
+        {/* Mobile-only topbar with hamburger */}
+        <div className="mobile-topbar">
+          <button className="menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="mobile-brand">DeepSecurity</span>
+        </div>
         {active === "recognition" && <Recognition />}
         {active === "identities" && <Identities />}
         {active === "logs" && <Logs />}
