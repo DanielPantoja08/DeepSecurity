@@ -95,40 +95,41 @@ export default function Logs() {
     const confirmRec = confirmDeleteId !== null && recordings.find((r) => r.id === confirmDeleteId);
 
     return (
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-        {confirmRec && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-                <div className="card" style={{ padding: "28px 32px", maxWidth: 400, width: "90%", textAlign: "center" }}>
-                    <div style={{ marginBottom: 12 }}>
-                        <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#dc2626" strokeWidth={1.5} style={{ display: "block", margin: "0 auto 12px" }}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                        </svg>
-                        <h4 style={{ marginBottom: 8 }}>¿Eliminar grabación?</h4>
-                        <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-                            Esta acción eliminará permanentemente el archivo de video y no se puede deshacer.
-                        </p>
-                        <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: 6 }}>
-                            {confirmRec.file_path.split(/[\\/]/).pop()}
-                        </p>
-                    </div>
-                    <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
-                        <button className="btn" onClick={() => setConfirmDeleteId(null)} style={{ minWidth: 100, border: "1px solid var(--border)" }}>
-                            Cancelar
-                        </button>
-                        <button
-                            className="btn"
-                            onClick={() => handleDeleteConfirm(confirmDeleteId)}
-                            style={{ minWidth: 100, background: "linear-gradient(135deg, #dc2626, #b91c1c)", color: "#fff", border: "1px solid #b91c1c" }}
-                        >
-                            Eliminar
-                        </button>
+            {confirmRec && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+                    <div className="card" style={{ padding: "28px 32px", maxWidth: 400, width: "90%", textAlign: "center" }}>
+                        <div style={{ marginBottom: 12 }}>
+                            <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#dc2626" strokeWidth={1.5} style={{ display: "block", margin: "0 auto 12px" }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                            </svg>
+                            <h4 style={{ marginBottom: 8 }}>¿Eliminar grabación?</h4>
+                            <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                                Esta acción eliminará permanentemente el archivo de video y no se puede deshacer.
+                            </p>
+                            <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: 6 }}>
+                                {confirmRec.file_path.split(/[\\/]/).pop()}
+                            </p>
+                        </div>
+                        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
+                            <button className="btn" onClick={() => setConfirmDeleteId(null)} style={{ minWidth: 100, border: "1px solid var(--border)" }}>
+                                Cancelar
+                            </button>
+                            <button
+                                className="btn"
+                                onClick={() => handleDeleteConfirm(confirmDeleteId)}
+                                style={{ minWidth: 100, background: "linear-gradient(135deg, #dc2626, #b91c1c)", color: "#fff", border: "1px solid #b91c1c" }}
+                            >
+                                Eliminar
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
 
-        <div className="logs-page">
+            <div className="logs-page">
             <div className="page-header">
                 <h2>📜 Registro de Grabaciones e Historial</h2>
                 <p>Visualiza las grabaciones realizadas y las personas identificadas en cada sesión.</p>
@@ -282,5 +283,6 @@ export default function Logs() {
                 )}
             </div>
         </div>
+        </>
     );
 }
