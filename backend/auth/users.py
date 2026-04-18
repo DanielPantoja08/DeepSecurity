@@ -3,8 +3,6 @@ import os
 import uuid
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
 from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, schemas
 from fastapi_users.authentication import (
@@ -17,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.database import get_async_session
 from ..db.user import User
+
+logger = logging.getLogger(__name__)
 
 JWT_SECRET = os.getenv("JWT_SECRET")
 if not JWT_SECRET:

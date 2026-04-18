@@ -1,11 +1,11 @@
 import secrets
 from datetime import datetime, timedelta
-from typing import Any, Optional, List
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select, outerjoin
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.users import current_active_user
