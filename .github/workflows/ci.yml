@@ -31,12 +31,9 @@ jobs:
 
       - name: Lint with ruff
         run: uv run ruff check .
-        continue-on-error: true # Let it continue for now if there are many errors
 
       - name: Run tests
         run: uv run pytest
-        # Note: This will fail if there are no tests. 
-        # We will add a test in the next step.
 
   frontend-ci:
     runs-on: ubuntu-latest
@@ -59,7 +56,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Build
         run: npm run build

@@ -2,7 +2,10 @@ import { useState } from "react";
 import Recognition from "./pages/Recognition";
 import Identities from "./pages/Identities";
 import SystemInfo from "./pages/SystemInfo";
-import Logs from "./pages/Logs";
+import Recordings from "./pages/Recordings";
+import Historial from "./pages/Historial";
+import Login from "./pages/Login";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import "./index.css";
 
 const NAV = [
@@ -25,7 +28,16 @@ const NAV = [
     ),
   },
   {
-    id: "logs",
+    id: "recordings",
+    label: "Grabaciones",
+    icon: (
+      <svg className="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.882V15.118a1 1 0 01-1.447.906L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+      </svg>
+    ),
+  },
+  {
+    id: "historial",
     label: "Historial",
     icon: (
       <svg className="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -44,30 +56,49 @@ const NAV = [
   },
 ];
 
-const PAGES = {
-  recognition: <Recognition />,
-  identities: <Identities />,
-  logs: <Logs />,
-  sysinfo: <SystemInfo />,
-};
-
-export default function App() {
+function AppContent() {
+  const { user, logout, loading } = useAuth();
   const [active, setActive] = useState("recognition");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const navigate = (id) => {
+    setActive(id);
+    setSidebarOpen(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="login-page">
+        <div style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+          Verificando sesión…
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     <div className="layout">
+      {sidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* ── Sidebar ── */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
         <div className="sidebar-brand">
           <h1>🛡️ DeepSecurity</h1>
           <span>Sistema de Identificación AI</span>
         </div>
+
         <ul className="sidebar-nav">
           {NAV.map((item) => (
             <li key={item.id}>
               <button
                 className={active === item.id ? "active" : ""}
-                onClick={() => setActive(item.id)}
+                onClick={() => navigate(item.id)}
               >
                 {item.icon}
                 {item.label}
@@ -75,10 +106,49 @@ export default function App() {
             </li>
           ))}
         </ul>
+
+        {/* User info + logout */}
+        <div className="sidebar-footer">
+          <div className="sidebar-user" title={user.email}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} style={{ flexShrink: 0 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span>{user.email}</span>
+          </div>
+          <button className="sidebar-logout" onClick={logout}>
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Cerrar Sesión
+          </button>
+        </div>
       </aside>
 
       {/* ── Page content ── */}
-      <main className="main">{PAGES[active]}</main>
+      <main className="main">
+        {/* Mobile-only topbar with hamburger */}
+        <div className="mobile-topbar">
+          <button className="menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span className="mobile-brand">DeepSecurity</span>
+        </div>
+        {active === "recognition" && <Recognition />}
+        {active === "identities" && <Identities />}
+        {active === "recordings" && <Recordings />}
+        {active === "historial" && <Historial />}
+        {active === "sysinfo" && <SystemInfo />}
+      </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

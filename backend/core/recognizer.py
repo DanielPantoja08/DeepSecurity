@@ -1,7 +1,11 @@
+import json
+import logging
 import os
-import pickle
+
 import numpy as np
 from deepface import DeepFace
+
+logger = logging.getLogger(__name__)
 
 
 class FaceRecognizer:
@@ -11,9 +15,13 @@ class FaceRecognizer:
     We pre-compute embeddings for every registered identity at startup and compare
     new face crops against the cache using cosine distance.  This brings per-face
     recognition cost from ~500 ms down to ~5 ms.
+
+    Cache is stored as two files (no pickle — safe against code-execution attacks):
+      - embeddings_cache.npz  — float32 matrix of shape (N, D)
+      - embeddings_cache_meta.json — list of {name, path} dicts
     """
 
-    def __init__(self, db_path=None, model_name="VGG-Face"):
+    def __init__(self, db_path: str | None = None, model_name: str = "VGG-Face") -> None:
         self.db_path = db_path
         self.model_name = model_name
         # Each entry: {"name": str, "embedding": np.ndarray, "path": str}
@@ -26,25 +34,35 @@ class FaceRecognizer:
             self.load_cache()
 
     @property
+    def _cache_npz(self):
+        return os.path.join(self.db_path, "embeddings_cache.npz") if self.db_path else None
+
+    @property
+    def _cache_meta(self):
+        return os.path.join(self.db_path, "embeddings_cache_meta.json") if self.db_path else None
+
+    # Kept for mtime comparison in load_cache()
+    @property
     def _cache_file(self):
-        return os.path.join(self.db_path, "embeddings_cache.pkl") if self.db_path else None
+        return self._cache_npz
 
     # ── Public API ───────────────────────────────────────────────
 
-    def load_cache(self):
+    def load_cache(self) -> None:
         """
         Loads embeddings from the file cache if it exists and is up to date.
         Otherwise, rebuilds the database by calling reload_db().
         """
-        cache_file = self._cache_file
+        cache_npz = self._cache_npz
+        cache_meta = self._cache_meta
 
-        if not cache_file or not os.path.exists(cache_file):
-            print("[recognizer] No cache file found. Building cache...")
+        if not cache_npz or not os.path.exists(cache_npz) or not os.path.exists(cache_meta):
+            logger.info("No cache file found. Building cache…")
             self.reload_db()
             return
 
         # Check if database has been modified since cache was created
-        cache_mtime = os.path.getmtime(cache_file)
+        cache_mtime = os.path.getmtime(cache_npz)
         needs_reload = False
 
         for root, _, files in os.walk(self.db_path):
@@ -61,19 +79,24 @@ class FaceRecognizer:
                 break
 
         if needs_reload:
-            print("[recognizer] Database modified. Rebuilding cache...")
+            logger.info("Database modified. Rebuilding cache…")
             self.reload_db()
         else:
             try:
-                assert cache_file is not None
-                with open(cache_file, "rb") as f:
-                    self._cache = pickle.load(f)
-                print(f"[recognizer] Loaded {len(self._cache)} embeddings from file cache.")
+                data = np.load(cache_npz, allow_pickle=False)
+                with open(cache_meta, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                embeddings = data["embeddings"]
+                self._cache = [
+                    {"name": m["name"], "embedding": embeddings[i], "path": m["path"]}
+                    for i, m in enumerate(meta)
+                ]
+                logger.info("Loaded %d embeddings from file cache.", len(self._cache))
             except Exception as e:
-                print(f"[recognizer] Error loading cache file: {e}. Rebuilding...")
+                logger.warning("Error loading cache file: %s. Rebuilding…", e)
                 self.reload_db()
 
-    def reload_db(self):
+    def reload_db(self) -> None:
         """
         (Re)build the in-memory embedding cache from the images stored in
         ``self.db_path``.  Call this after adding or deleting identities.
@@ -104,22 +127,18 @@ class FaceRecognizer:
                             {"name": person_name, "embedding": emb, "path": img_path}
                         )
                 except Exception as e:
-                    print(f"[recognizer] skip {img_path}: {e}")
+                    logger.warning("Skipping %s: %s", img_path, e)
 
         self._cache = cache
-        cache_file = self._cache_file
-        if cache_file:
-            try:
-                with open(cache_file, "wb") as f:
-                    pickle.dump(self._cache, f)
-                print(f"[recognizer] Cache saved to {cache_file}")
-            except Exception as e:
-                print(f"[recognizer] Failed to save cache file: {e}")
+        self._save_cache()
 
-        print(f"[recognizer] Cache loaded: {len(cache)} embeddings for "
-              f"{len(set(c['name'] for c in cache))} identities")
+        logger.info(
+            "Cache loaded: %d embeddings for %d identities.",
+            len(cache),
+            len(set(c["name"] for c in cache)),
+        )
 
-    def find_identity(self, face_crop: np.ndarray, threshold: float = 0.20):
+    def find_identity(self, face_crop: np.ndarray, threshold: float = 0.20) -> tuple[str, float]:
         """
         Compute the embedding for *face_crop* (an RGB numpy array that already
         contains a detected face) and compare against the cached database
@@ -143,7 +162,7 @@ class FaceRecognizer:
 
             query_emb = np.array(reps[0]["embedding"], dtype=np.float32)
         except Exception as e:
-            print(f"[recognizer] Error computing embedding: {e}")
+            logger.error("Error computing embedding: %s", e)
             return "Unknown", 1.0
 
         # Vectorised cosine distance against all cached embeddings
@@ -153,13 +172,30 @@ class FaceRecognizer:
         best_idx = int(np.argmin(distances))
         best_dist = float(distances[best_idx])
 
-        #print(best_dist, threshold, best_dist <= threshold)
-        
         if best_dist <= threshold:
             return self._cache[best_idx]["name"], best_dist
         return "Unknown", best_dist
 
     # ── Helpers ──────────────────────────────────────────────────
+
+    def _save_cache(self) -> None:
+        """Persist the in-memory cache to npz + JSON (no pickle)."""
+        cache_npz = self._cache_npz
+        cache_meta = self._cache_meta
+        if not cache_npz:
+            return
+        try:
+            if self._cache:
+                embeddings = np.stack([c["embedding"] for c in self._cache])
+            else:
+                embeddings = np.empty((0,), dtype=np.float32)
+            np.savez(cache_npz, embeddings=embeddings)
+            meta = [{"name": c["name"], "path": c["path"]} for c in self._cache]
+            with open(cache_meta, "w", encoding="utf-8") as f:
+                json.dump(meta, f)
+            logger.info("Cache saved to %s", cache_npz)
+        except Exception as e:
+            logger.error("Failed to save cache: %s", e)
 
     @staticmethod
     def _cosine_distances(query: np.ndarray, matrix: np.ndarray) -> np.ndarray:

@@ -39,7 +39,7 @@ export default function SystemInfo() {
             try {
                 const settings = await getSettings();
                 setDbPath(settings.db_path);
-            } catch (err) {
+            } catch {
                 setDbPath("Error al cargar");
             }
         }
@@ -68,8 +68,8 @@ export default function SystemInfo() {
                     </div>
                     {INFO_ROWS_BASE.map(({ label, value, badge }) => (
                         <div key={label} style={{
-                            display: "flex", alignItems: "center",
-                            justifyContent: "space-between", gap: 12,
+                            display: "flex", alignItems: "flex-start",
+                            justifyContent: "space-between", gap: 12, flexWrap: "wrap",
                             paddingBottom: 12,
                             borderBottom: "1px solid var(--border)",
                         }}>
@@ -88,18 +88,19 @@ export default function SystemInfo() {
                         const mc = METHOD_COLOR[method];
                         return (
                             <div key={path} style={{
-                                display: "flex", alignItems: "center", gap: 14,
-                                padding: "12px 14px",
+                                display: "flex", alignItems: "flex-start", gap: 10,
+                                padding: "10px 12px",
                                 background: "var(--surface2)", borderRadius: "var(--radius-sm)",
+                                flexWrap: "wrap",
                             }}>
                                 <span style={{
                                     background: mc.bg, color: mc.color,
                                     fontWeight: 700, fontSize: "0.72rem",
                                     padding: "3px 8px", borderRadius: 4,
-                                    fontFamily: "monospace", whiteSpace: "nowrap",
+                                    fontFamily: "monospace", whiteSpace: "nowrap", flexShrink: 0,
                                 }}>{method}</span>
-                                <code style={{ flex: "0 1 auto", fontSize: "0.82rem", color: "var(--accent)", whiteSpace: "nowrap" }}>{path}</code>
-                                <span style={{ flex: 1, fontSize: "0.82rem", color: "var(--text-muted)" }}>{desc}</span>
+                                <code style={{ fontSize: "0.82rem", color: "var(--accent)", wordBreak: "break-all", flex: "1 1 120px" }}>{path}</code>
+                                <span style={{ width: "100%", fontSize: "0.78rem", color: "var(--text-muted)", paddingLeft: 2 }}>{desc}</span>
                             </div>
                         );
                     })}

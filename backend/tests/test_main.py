@@ -1,14 +1,19 @@
-from fastapi.testclient import TestClient
-from backend.main import app
+"""Health check and app-level tests."""
 
-client = TestClient(app)
 
-def test_read_root():
-    """Verifica que el punto de entrada principal responda."""
-    response = client.get("/")
+async def test_health(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
 
-    assert response.status_code in [200, 404] 
 
-def test_app_instance():
-    """Verifica que la instancia de la app existe."""
+async def test_app_instance():
+    from backend.main import app
     assert app is not None
+
+
+async def test_openapi_schema_available(client):
+    resp = await client.get("/openapi.json")
+    assert resp.status_code == 200
+    assert "paths" in resp.json()

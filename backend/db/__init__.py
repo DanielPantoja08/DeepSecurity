@@ -1,4 +1,13 @@
-from .database import engine, create_db_and_tables, get_session
+from .database import engine, create_db_and_tables, get_async_session, Base
 from .models import VideoRecording, RecognitionLog
+from .user import User
 
-__all__ = ["engine", "create_db_and_tables", "get_session", "VideoRecording", "RecognitionLog"]
+__all__ = [
+    "engine",
+    "create_db_and_tables",
+    "get_async_session",
+    "Base",
+    "VideoRecording",
+    "RecognitionLog",
+    "User",
+]

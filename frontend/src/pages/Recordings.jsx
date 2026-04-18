@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getVideoRecordings, getDownloadToken, getRecordingFileUrl, deleteRecording } from "../api/client";
 
-export default function Logs() {
+export default function Recordings() {
     const [recordings, setRecordings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -131,8 +131,8 @@ export default function Logs() {
 
             <div className="logs-page">
             <div className="page-header">
-                <h2>📜 Registro de Grabaciones e Historial</h2>
-                <p>Visualiza las grabaciones realizadas y las personas identificadas en cada sesión.</p>
+                <h2>🎬 Grabaciones</h2>
+                <p>Visualiza y gestiona las grabaciones de video del sistema de reconocimiento.</p>
             </div>
 
             {error && <div className="alert alert-danger" style={{ marginBottom: 20 }}>{error}</div>}

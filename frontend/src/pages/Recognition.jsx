@@ -4,6 +4,7 @@ import { recognizeFrame, startRecording, stopRecording, getRecordingStatus } fro
 const COLORS = {
     known: "#10b981",
     unknown: "#ef4444",
+    spoof: "#f59e0b",
 };
 
 const LERP = 0.35;
@@ -53,24 +54,6 @@ export default function Recognition() {
         }
     }, []);
 
-    const stopCamera = useCallback(() => {
-        if (isRecordingRef.current) handleToggleRecording(); // Stop recording if camera stops
-        cancelledRef.current = true;
-        if (videoRef.current?.srcObject) {
-            videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
-            videoRef.current.srcObject = null;
-        }
-        if (animFrameRef.current) {
-            cancelAnimationFrame(animFrameRef.current);
-            animFrameRef.current = null;
-        }
-        setRunning(false);
-        setFaces([]);
-        interpRef.current = [];
-        const ctx = overlayRef.current?.getContext("2d");
-        if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
-    }, []);
-
     // ── Recording toggle ────────────────────────────────────────
     const handleToggleRecording = useCallback(async () => {
         if (!running) return;
@@ -89,6 +72,24 @@ export default function Recognition() {
             setRecordingLoading(false);
         }
     }, [running]);
+
+    const stopCamera = useCallback(() => {
+        if (isRecordingRef.current) handleToggleRecording(); // Stop recording if camera stops
+        cancelledRef.current = true;
+        if (videoRef.current?.srcObject) {
+            videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+            videoRef.current.srcObject = null;
+        }
+        if (animFrameRef.current) {
+            cancelAnimationFrame(animFrameRef.current);
+            animFrameRef.current = null;
+        }
+        setRunning(false);
+        setFaces([]);
+        interpRef.current = [];
+        const ctx = overlayRef.current?.getContext("2d");
+        if (ctx) ctx.clearRect(0, 0, overlayRef.current.width, overlayRef.current.height);
+    }, [handleToggleRecording]);
 
     // ── Response-gated capture loop ─────────────────────────────
     useEffect(() => {
@@ -214,8 +215,9 @@ export default function Recognition() {
                 face.interp.h = lerp(face.interp.h, face.target.h, LERP);
             }
             const { x, y, w, h } = face.interp || face.box;
+            const isSpoof = face.is_real === false;
             const isKnown = face.name !== "Unknown";
-            const color = isKnown ? COLORS.known : COLORS.unknown;
+            const color = !isKnown ? COLORS.unknown : (isSpoof ? COLORS.spoof : COLORS.known);
             const label = isKnown ? `${face.name}  ${Math.round(face.similarity * 100)}%` : "Desconocido";
 
             ctx.shadowColor = color;
@@ -236,16 +238,17 @@ export default function Recognition() {
             ctx.roundRect(lx, ly, textW, labelH, 4);
             ctx.fill();
 
-            ctx.fillStyle = isKnown ? "#000" : "#fff";
+            ctx.fillStyle = !isKnown ? "#fff" : "#000";
             ctx.fillText(label, lx + 8, ly + 16);
         });
     }
 
     useEffect(() => {
+        const video = videoRef.current;
         return () => {
             cancelledRef.current = true;
-            if (videoRef.current?.srcObject) {
-                videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+            if (video?.srcObject) {
+                video.srcObject.getTracks().forEach((t) => t.stop());
             }
         };
     }, []);
@@ -369,17 +372,32 @@ export default function Recognition() {
 
             {faces.length > 0 && (
                 <div style={{ marginTop: 20, display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    {faces.map((f, i) => (
-                        <div key={i} className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-                            <span className={`dot ${f.name !== "Unknown" ? "dot-green" : "dot-red"}`} />
-                            <div>
-                                <div style={{ fontWeight: 600 }}>{f.name !== "Unknown" ? f.name : "Desconocido"}</div>
-                                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                                    Similitud: {Math.round(f.similarity * 100)}%
+                    {faces.map((f, i) => {
+                        const isSpoof = f.is_real === false;
+                        const isKnown = f.name !== "Unknown";
+                        const dotClass = !isKnown ? "dot-red" : (isSpoof ? "dot-orange" : "dot-green");
+                        const displayName = isKnown ? f.name : "Desconocido";
+                        return (
+                            <div key={i} className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+                                <span className={`dot ${dotClass}`} style={(isKnown && isSpoof) ? { backgroundColor: "#f59e0b" } : {}} />
+                                <div>
+                                    <div style={{ fontWeight: 600, color: (isKnown && isSpoof) ? "#f59e0b" : undefined }}>{displayName}</div>
+                                    <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                                        Similitud: {Math.round(f.similarity * 100)}%
+                                        {f.antispoof_score !== undefined && (
+                                            <>
+                                                {f.is_real ? (
+                                                    <> | Real: {Math.round(f.antispoof_score * 100)}%</>
+                                                ) : (
+                                                    <> | Spoof: {Math.round(f.antispoof_score * 100)}%</>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>

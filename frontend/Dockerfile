@@ -7,17 +7,19 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Build the app with environment variables
+# Build the app
+# VITE_API_URL is intentionally left empty so the frontend uses relative paths (/api/...)
 COPY . .
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
 
-# Remove default nginx static assets
+# Remove default nginx static assets and config
 RUN rm -rf /usr/share/nginx/html/*
+
+# Copy custom nginx config (reverse proxy to backend)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy static assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html

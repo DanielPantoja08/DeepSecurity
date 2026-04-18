@@ -1,36 +1,60 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: deepsecurity-db
+    environment:
+      POSTGRES_DB: deepsecurity
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Set INSTALL_ANTISPOOF=true in .env (or shell) to include PyTorch CPU
+        # in the image and enable the anti-spoofing module.
+        INSTALL_ANTISPOOF: ${INSTALL_ANTISPOOF:-true}
     container_name: deepsecurity-api
     ports:
       - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     volumes:
-      - ./db/faces:/app/db/faces
+      - registred_faces:/app/db/faces
       - ./backend:/app/backend
       - deepface_weights:/root/.deepface
+      - ./recordings:/app/recordings
     environment:
-      - DB_PATH=/app/db/faces
-      - CORS_ORIGINS=http://localhost,http://localhost:5173,http://localhost:3000
-      - DISABLE_NATIVE_FILE_PICKER=true
-      - TF_FORCE_GPU_ALLOW_GROWTH=true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [ gpu ]
+      # Required: network & database
+      - CORS_ORIGINS=*
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/deepsecurity
+      # Required: authentication secret (MUST be a secure random value in production)
+      # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+      - JWT_SECRET=${JWT_SECRET:-dev_insecure_secret_key_change_in_production}
+      # ── Anti-spoofing (optional) ─────────────────────────────────────────────
+      # Requires INSTALL_ANTISPOOF=true at build time (installs PyTorch CPU).
+      - ANTISPOOF_ENABLED=${ANTISPOOF_ENABLED:-true}
+      # Score threshold 0.0–1.0; faces scoring below this are flagged as spoofed.
+      - ANTISPOOF_THRESHOLD=${ANTISPOOF_THRESHOLD:-0.5}
     restart: unless-stopped
-    command: [ "uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
+    command: ["uv", "run", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=http://localhost:8000
     container_name: deepsecurity-web
     ports:
       - "80:80"
@@ -40,3 +64,5 @@ services:
 
 volumes:
   deepface_weights:
+  postgres_data:
+  registred_faces:
