@@ -108,20 +108,19 @@ async def get_recordings(
     session: AsyncSession = Depends(get_async_session),
     limit: int = 50,
     cursor: Optional[int] = None,
+    include_deleted: bool = False,
     _user=Depends(current_active_user),
 ) -> dict[str, Any]:
     """
     Returns up to ``limit`` recordings for the current user, ordered by id DESC.
     Pass ``cursor=<last_id>`` from the previous page to get the next page.
+    Pass ``include_deleted=true`` to include soft-deleted recordings.
     Response: ``{ items: [...], next_cursor: int | null }``
     """
-    query = (
-        select(VideoRecording)
-        .where(VideoRecording.user_id == str(_user.id))
-        .where(VideoRecording.is_deleted == False)  # noqa: E712
-        .order_by(VideoRecording.id.desc())
-        .limit(limit + 1)
-    )
+    query = select(VideoRecording).where(VideoRecording.user_id == str(_user.id))
+    if not include_deleted:
+        query = query.where(VideoRecording.is_deleted == False)  # noqa: E712
+    query = query.order_by(VideoRecording.id.desc()).limit(limit + 1)
     if cursor is not None:
         query = query.where(VideoRecording.id < cursor)
 

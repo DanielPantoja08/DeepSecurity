@@ -2,7 +2,8 @@ import { useState } from "react";
 import Recognition from "./pages/Recognition";
 import Identities from "./pages/Identities";
 import SystemInfo from "./pages/SystemInfo";
-import Logs from "./pages/Logs";
+import Recordings from "./pages/Recordings";
+import Historial from "./pages/Historial";
 import Login from "./pages/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import "./index.css";
@@ -27,7 +28,16 @@ const NAV = [
     ),
   },
   {
-    id: "logs",
+    id: "recordings",
+    label: "Grabaciones",
+    icon: (
+      <svg className="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.882V15.118a1 1 0 01-1.447.906L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+      </svg>
+    ),
+  },
+  {
+    id: "historial",
     label: "Historial",
     icon: (
       <svg className="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -127,7 +137,8 @@ function AppContent() {
         </div>
         {active === "recognition" && <Recognition />}
         {active === "identities" && <Identities />}
-        {active === "logs" && <Logs />}
+        {active === "recordings" && <Recordings />}
+        {active === "historial" && <Historial />}
         {active === "sysinfo" && <SystemInfo />}
       </main>
     </div>

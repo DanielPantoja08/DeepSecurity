@@ -220,9 +220,10 @@ export async function deleteRecording(recordingId) {
  * @param {{ limit?: number, cursor?: number|null }} options
  * @returns {Promise<{ items: Array, next_cursor: number|null }>}
  */
-export async function getVideoRecordings({ limit = 50, cursor = null } = {}) {
+export async function getVideoRecordings({ limit = 50, cursor = null, includeDeleted = false } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor != null) params.set("cursor", String(cursor));
+  if (includeDeleted) params.set("include_deleted", "true");
   const res = await apiFetch(`${BASE_URL}/api/history/recordings?${params}`);
   if (!res.ok) throw new Error(`getVideoRecordings: ${res.status}`);
   return res.json();
