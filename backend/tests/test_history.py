@@ -6,7 +6,7 @@
 async def test_get_logs_empty(auth_client):
     resp = await auth_client.get("/api/history/logs")
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    assert isinstance(resp.json()["items"], list)
 
 
 async def test_get_logs_requires_auth(client):
@@ -17,7 +17,7 @@ async def test_get_logs_requires_auth(client):
 async def test_get_logs_limit_param(auth_client):
     resp = await auth_client.get("/api/history/logs?limit=5")
     assert resp.status_code == 200
-    assert len(resp.json()) <= 5
+    assert len(resp.json()["items"]) <= 5
 
 
 async def test_get_logs_invalid_limit(auth_client):
@@ -31,7 +31,7 @@ async def test_get_logs_invalid_limit(auth_client):
 async def test_get_recordings_empty(auth_client):
     resp = await auth_client.get("/api/history/recordings")
     assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    assert isinstance(resp.json()["items"], list)
 
 
 async def test_get_recordings_requires_auth(client):

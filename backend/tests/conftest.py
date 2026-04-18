@@ -59,10 +59,21 @@ mock_recorder.is_recording = False
 mock_recorder.current_file = None
 mock_recorder.start_time = None
 
+mock_antispoof = MagicMock()
+mock_antispoof.available = False
+
 app.state.detector = mock_detector
 app.state.recognizer = mock_recognizer
 app.state.recorder = mock_recorder
 app.state.db_path = str(FACES_DIR)
+app.state.recognizer_cache = {}
+app.state.antispoof = mock_antispoof
+app.state.antispoof_enabled = False
+app.state.antispoof_threshold = 0.5
+
+# Patch _get_user_recognizer so tests never instantiate real FaceRecognizer
+from backend.routers import faces as _faces_router  # noqa: E402
+_faces_router._get_user_recognizer = lambda request, user_id: mock_recognizer
 
 
 # ── DB table lifecycle (sync fixture calls asyncio.run for isolation) ─────────
