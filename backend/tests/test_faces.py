@@ -1,6 +1,5 @@
 """Tests for identity (faces) CRUD — POST, GET, DELETE /api/faces."""
 import io
-import pathlib
 
 from conftest import FACES_DIR, make_jpeg
 

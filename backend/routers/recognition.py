@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.users import current_active_user
 from ..db import get_async_session, RecognitionLog, VideoRecording
-from ..limiter import limiter
 from ..messages import IMAGE_TOO_LARGE, UNSUPPORTED_IMAGE_FORMAT
 from .faces import _get_user_recognizer
 
@@ -120,7 +119,6 @@ async def frame(
     # Anti-spoofing: run in parallel per-face if enabled and PyTorch is available.
     antispoof = request.app.state.antispoof
     antispoof_enabled = getattr(request.app.state, "antispoof_enabled", False)
-    antispoof_threshold = getattr(request.app.state, "antispoof_threshold", 0.5)
     spoof_results = None
 
     if antispoof_enabled and antispoof.available:

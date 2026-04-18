@@ -27,7 +27,6 @@ if ROOT_DIR not in sys.path:
 
 from backend.core.antispoof import AntiSpoofChecker
 from backend.core.detector import FaceDetector
-from backend.core.recognizer import FaceRecognizer
 from backend.core.recorder import VideoRecorder
 from backend.routers import recognition, faces, settings, history
 from backend.db import create_db_and_tables
