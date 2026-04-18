@@ -73,7 +73,9 @@ app.state.antispoof_threshold = 0.5
 
 # Patch _get_user_recognizer so tests never instantiate real FaceRecognizer
 from backend.routers import faces as _faces_router  # noqa: E402
+from backend.routers import recognition as _recognition_router  # noqa: E402
 _faces_router._get_user_recognizer = lambda request, user_id: mock_recognizer
+_recognition_router._get_user_recognizer = lambda request, user_id: mock_recognizer
 
 
 # ── DB table lifecycle (sync fixture calls asyncio.run for isolation) ─────────
