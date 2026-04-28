@@ -38,19 +38,23 @@ class VideoRecorder:
 
         h, w = frame_bgr.shape[:2]
 
-        # Lazy init writer with actual frame dimensions
+        # Lazy init writer with actual frame dimensions.
+        # Use mp4v as the intermediate codec — stop() always re-encodes to
+        # H.264 + faststart via FFmpeg, so the intermediate codec only needs
+        # to produce a valid file, not browser-compatible output. avc1 is
+        # unavailable in the OpenCV-bundled FFmpeg on most Linux/Docker images
+        # and would generate ERROR noise in the logs before falling back anyway.
         if self.writer is None:
-            # Try AVC1 (H.264) for browser compatibility, fallback to MP4V
-            fourcc = cv2.VideoWriter_fourcc(*"avc1")
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             self.writer = cv2.VideoWriter(self.current_file, fourcc, 10.0, (w, h))
 
             if not self.writer.isOpened():
-                logger.warning("avc1 codec failed, falling back to mp4v")
-                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-                self.writer = cv2.VideoWriter(self.current_file, fourcc, 10.0, (w, h))
+                logger.error("mp4v VideoWriter failed to open: %s", self.current_file)
+                self.is_recording = False
+                return
 
             self.width, self.height = w, h
-            logger.info("VideoWriter initialised: %dx%d", w, h)
+            logger.info("VideoWriter initialised (mp4v): %dx%d", w, h)
 
         # Ensure frame matches initialized dimensions (OpenCV requirement)
         if w != self.width or h != self.height:
