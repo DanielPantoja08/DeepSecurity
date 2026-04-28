@@ -57,11 +57,13 @@ export const getRecordingFileUrl = (id, token, download = false) => {
 /**
  * Sends a video frame blob to the recognition endpoint.
  * @param {Blob} blob - JPEG image blob from canvas.toBlob()
+ * @param {string|null} cameraId - Camera ID to tag the frame with (optional)
  * @returns {Promise<{faces: Array}>}
  */
-export async function recognizeFrame(blob) {
+export async function recognizeFrame(blob, cameraId = null) {
   const form = new FormData();
   form.append("file", blob, "frame.jpg");
+  if (cameraId) form.append("camera_id", cameraId);
   const res = await apiFetch(`${BASE_URL}/api/recognize`, {
     method: "POST",
     body: form,
@@ -157,30 +159,36 @@ export async function browseFolder() {
 }
 
 /**
- * Commands the server to start recording the current stream.
+ * Commands the server to start recording for a specific camera.
+ * @param {string} cameraId
  */
-export async function startRecording() {
+export async function startRecording(cameraId) {
   const res = await apiFetch(`${BASE_URL}/api/recognize/start_recording`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ camera_id: cameraId }),
   });
   if (!res.ok) throw new Error(`startRecording: ${res.status}`);
   return res.json();
 }
 
 /**
- * Commands the server to stop recording and returns recording info.
+ * Commands the server to stop recording for a specific camera.
+ * @param {string} cameraId
  */
-export async function stopRecording() {
+export async function stopRecording(cameraId) {
   const res = await apiFetch(`${BASE_URL}/api/recognize/stop_recording`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ camera_id: cameraId }),
   });
   if (!res.ok) throw new Error(`stopRecording: ${res.status}`);
   return res.json();
 }
 
 /**
- * Fetches the current recording status.
- * @returns {Promise<{is_recording: boolean}>}
+ * Fetches the current recording status for all cameras.
+ * @returns {Promise<{cameras: Record<string, {is_recording: boolean, current_file: string|null}>}>}
  */
 export const getRecordingStatus = async () => {
   const res = await apiFetch(`${BASE_URL}/api/recognize/status`);
@@ -220,10 +228,11 @@ export async function deleteRecording(recordingId) {
  * @param {{ limit?: number, cursor?: number|null }} options
  * @returns {Promise<{ items: Array, next_cursor: number|null }>}
  */
-export async function getVideoRecordings({ limit = 50, cursor = null, includeDeleted = false } = {}) {
+export async function getVideoRecordings({ limit = 50, cursor = null, includeDeleted = false, cameraId = null } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor != null) params.set("cursor", String(cursor));
   if (includeDeleted) params.set("include_deleted", "true");
+  if (cameraId != null) params.set("camera_id", cameraId);
   const res = await apiFetch(`${BASE_URL}/api/history/recordings?${params}`);
   if (!res.ok) throw new Error(`getVideoRecordings: ${res.status}`);
   return res.json();

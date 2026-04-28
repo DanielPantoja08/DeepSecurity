@@ -64,6 +64,7 @@ async def get_logs(
     limit: int = 100,
     cursor: Optional[int] = None,
     video_id: Optional[int] = None,
+    camera_id: Optional[str] = None,
     _user=Depends(current_active_user),
 ) -> dict[str, Any]:
     """
@@ -83,6 +84,8 @@ async def get_logs(
         query = query.where(RecognitionLog.id < cursor)
     if video_id is not None:
         query = query.where(RecognitionLog.video_id == video_id)
+    if camera_id is not None:
+        query = query.where(RecognitionLog.camera_id == camera_id)
 
     result = await session.execute(query)
     rows = result.all()
@@ -109,6 +112,7 @@ async def get_recordings(
     limit: int = 50,
     cursor: Optional[int] = None,
     include_deleted: bool = False,
+    camera_id: Optional[str] = None,
     _user=Depends(current_active_user),
 ) -> dict[str, Any]:
     """
@@ -120,6 +124,8 @@ async def get_recordings(
     query = select(VideoRecording).where(VideoRecording.user_id == str(_user.id))
     if not include_deleted:
         query = query.where(VideoRecording.is_deleted == False)  # noqa: E712
+    if camera_id is not None:
+        query = query.where(VideoRecording.camera_id == camera_id)
     query = query.order_by(VideoRecording.id.desc()).limit(limit + 1)
     if cursor is not None:
         query = query.where(VideoRecording.id < cursor)
@@ -145,6 +151,7 @@ async def get_recordings(
                 "start_time": rec.start_time,
                 "end_time": rec.end_time,
                 "is_deleted": rec.is_deleted,
+                "camera_id": rec.camera_id,
                 "detected_people": unique_people,
             }
         )

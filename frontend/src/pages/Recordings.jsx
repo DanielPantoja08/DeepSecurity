@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getVideoRecordings, getDownloadToken, getRecordingFileUrl, deleteRecording } from "../api/client";
+import { listCameras } from "../api/cameras";
 
 export default function Recordings() {
     const [recordings, setRecordings] = useState([]);
@@ -12,6 +13,7 @@ export default function Recordings() {
     const [videoUrls, setVideoUrls] = useState({});
     const [deletingId, setDeletingId] = useState(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+    const [cameraMap, setCameraMap] = useState({});
 
     const fetchPage = async (cursor = null) => {
         const isFirstPage = cursor === null;
@@ -34,6 +36,9 @@ export default function Recordings() {
 
     useEffect(() => {
         fetchPage();
+        listCameras()
+            .then((cams) => setCameraMap(Object.fromEntries(cams.map((c) => [c.id, c.name]))))
+            .catch(() => {});
     }, []);
 
     const formatDate = (isoStr) => {
@@ -144,6 +149,7 @@ export default function Recordings() {
                             <tr>
                                 <th style={{ width: 40 }}></th>
                                 <th>Fecha y Hora</th>
+                                <th>Cámara</th>
                                 <th>Duración</th>
                                 <th style={{ textAlign: "right" }}>Acciones</th>
                             </tr>
@@ -169,6 +175,9 @@ export default function Recordings() {
                                             <td>
                                                 <div style={{ fontWeight: 600 }}>{formatDate(rec.start_time)}</div>
                                                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{rec.file_path.split(/[\\/]/).pop()}</div>
+                                            </td>
+                                            <td style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                                                {rec.camera_id ? (cameraMap[rec.camera_id] || rec.camera_id.slice(0, 8) + "…") : "—"}
                                             </td>
                                             <td>
                                                 {rec.end_time ? (
@@ -221,7 +230,7 @@ export default function Recordings() {
                                         {expandedId === rec.id && (
                                             <tr style={{ background: "var(--surface)" }}>
                                                 <td></td>
-                                                <td colSpan="3" style={{ padding: "20px 24px" }}>
+                                                <td colSpan="4" style={{ padding: "20px 24px" }}>
                                                     <div className={`detail-grid${playingId === rec.id ? " detail-grid--playing" : ""}`}>
                                                         {/* Info Panel */}
                                                         <div>

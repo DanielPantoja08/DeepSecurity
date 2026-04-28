@@ -110,3 +110,49 @@ class VideoRecorder:
         self.height = None
 
         return file_path, start_time, end_time
+
+
+class RecorderManager:
+    """Manages one VideoRecorder per camera_id, enabling concurrent recordings."""
+
+    def __init__(self, recordings_dir: str) -> None:
+        self._dir = recordings_dir
+        self._recorders: dict[str, VideoRecorder] = {}
+
+    def _get_or_create(self, camera_id: str) -> VideoRecorder:
+        if camera_id not in self._recorders:
+            self._recorders[camera_id] = VideoRecorder(output_dir=self._dir)
+        return self._recorders[camera_id]
+
+    def start(self, camera_id: str) -> Optional[str]:
+        recorder = self._get_or_create(camera_id)
+        recorder.start()
+        return recorder.current_file
+
+    def stop(self, camera_id: str) -> tuple[Optional[str], Optional[datetime], Optional[datetime]]:
+        recorder = self._recorders.get(camera_id)
+        if recorder is None:
+            return None, None, None
+        return recorder.stop()
+
+    def add_frame(self, camera_id: str, frame: np.ndarray) -> None:
+        recorder = self._recorders.get(camera_id)
+        if recorder and recorder.is_recording:
+            recorder.add_frame(frame)
+
+    def is_recording(self, camera_id: str) -> bool:
+        recorder = self._recorders.get(camera_id)
+        return recorder is not None and recorder.is_recording
+
+    def current_file(self, camera_id: str) -> Optional[str]:
+        recorder = self._recorders.get(camera_id)
+        return recorder.current_file if recorder else None
+
+    def status(self) -> dict[str, dict]:
+        return {
+            cid: {
+                "is_recording": r.is_recording,
+                "current_file": os.path.basename(r.current_file) if r.current_file else None,
+            }
+            for cid, r in self._recorders.items()
+        }

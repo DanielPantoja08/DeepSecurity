@@ -27,8 +27,9 @@ if ROOT_DIR not in sys.path:
 
 from backend.core.antispoof import AntiSpoofChecker
 from backend.core.detector import FaceDetector
-from backend.core.recorder import VideoRecorder
+from backend.core.recorder import RecorderManager
 from backend.routers import recognition, faces, settings, history
+from backend.routers import cameras as cameras_router
 from backend.db import create_db_and_tables
 from backend.auth.users import (
     fastapi_users,
@@ -53,7 +54,8 @@ async def lifespan(app: FastAPI):
 
     app.state.detector = FaceDetector()
     app.state.recognizer_cache: dict = {}  # user_id (str) -> FaceRecognizer
-    app.state.recorder = VideoRecorder(output_dir=os.path.join(ROOT_DIR, "recordings"))
+    app.state.recorders = RecorderManager(recordings_dir=os.path.join(ROOT_DIR, "recordings"))
+    app.state.active_recording_ids: dict = {}  # camera_id (str) -> recording_id (int)
     app.state.db_path = db_path
     app.state.settings_lock = asyncio.Lock()  # 4.1: guard concurrent settings mutations
 
@@ -123,6 +125,7 @@ app.include_router(recognition.router)
 app.include_router(faces.router)
 app.include_router(settings.router)
 app.include_router(history.router)
+app.include_router(cameras_router.router)
 
 
 @app.get("/", tags=["health"])
