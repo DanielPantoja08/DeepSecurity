@@ -5,7 +5,7 @@ Uses a file-based SQLite database (temp file) instead of in-memory to avoid
 event-loop / connection-lifetime issues across session-scoped setup and
 per-function async test loops.
 
-ML singletons (FaceDetector, FaceRecognizer, VideoRecorder) are replaced with
+ML singletons (FaceDetector, FaceRecognizer, RecorderManager) are replaced with
 MagicMocks so TensorFlow is never loaded during the test suite.
 """
 import asyncio
@@ -54,17 +54,19 @@ mock_recognizer.load_cache.return_value = None
 mock_detector = MagicMock()
 mock_detector.detect_faces.return_value = []
 
-mock_recorder = MagicMock()
-mock_recorder.is_recording = False
-mock_recorder.current_file = None
-mock_recorder.start_time = None
+mock_recorders = MagicMock()
+mock_recorders.is_recording.return_value = False
+mock_recorders.current_file.return_value = None
+mock_recorders.status.return_value = {}
+mock_recorders.start.return_value = "/tmp/rec_test.mp4"
+mock_recorders.stop.return_value = (None, None, None)
 
 mock_antispoof = MagicMock()
 mock_antispoof.available = False
 
 app.state.detector = mock_detector
-app.state.recognizer = mock_recognizer
-app.state.recorder = mock_recorder
+app.state.recorders = mock_recorders
+app.state.active_recording_ids = {}
 app.state.db_path = str(FACES_DIR)
 app.state.recognizer_cache = {}
 app.state.antispoof = mock_antispoof
