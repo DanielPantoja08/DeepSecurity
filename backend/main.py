@@ -9,6 +9,13 @@ import asyncio
 import logging
 import sys
 import os
+
+# Must be set before TensorFlow (or DeepFace) is imported.
+# 2 = suppress INFO + WARNING C++ logs; keeps ERROR visible.
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+# Disable oneDNN optimizations that trigger extra allocation warnings.
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
