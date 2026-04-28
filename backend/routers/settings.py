@@ -55,11 +55,13 @@ async def update_settings(settings: Settings, request: Request) -> dict:
     if not os.path.isdir(new_path):
         raise HTTPException(status_code=400, detail=PATH_NOT_A_DIRECTORY)
 
-    # 4.1: serialize concurrent settings mutations so only one reload runs at a time
+    # Serialize concurrent settings mutations so only one reload runs at a time.
+    # Update every per-user recognizer that is currently cached.
     async with request.app.state.settings_lock:
         request.app.state.db_path = new_path
-        request.app.state.recognizer.db_path = new_path
-        request.app.state.recognizer.load_cache()
+        for recognizer in request.app.state.recognizer_cache.values():
+            recognizer.db_path = new_path
+            recognizer.load_cache()
 
     if settings.antispoof_enabled is not None:
         request.app.state.antispoof_enabled = settings.antispoof_enabled
